@@ -1,5 +1,5 @@
 /* ============================================================
-   style.css — Antigravity Pokémon Team Builder
+   style.css — Battle Blueprint Pokémon Trainer Lab
    Dark premium theme with glassmorphism and micro-animations
    ============================================================ */
 
@@ -62,7 +62,7 @@ body::before {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  text-shadow: none;
+  text-shadow: 0 4px 15px rgba(124, 58, 237, 0.3);
 }
 
 .app-header .logo-sub {
@@ -78,6 +78,10 @@ body::before {
   font-size: 2.5rem;
   animation: spin-float 6s ease-in-out infinite;
   margin-right: 0.5rem;
+  color: #ef4444;
+  /* Standard Pokeball red */
+  text-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+  vertical-align: middle;
 }
 
 @keyframes spin-float {
@@ -227,10 +231,29 @@ body::before {
 #team-counter {
   font-weight: 700;
   font-size: 1.1rem;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--text-main);
+  opacity: 0.9;
+}
+
+.btn-clear,
+.btn-clear-rival {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 600;
+}
+
+.btn-clear:hover,
+.btn-clear-rival:hover {
+  background: rgba(248, 113, 113, 0.15);
+  border-color: rgba(248, 113, 113, 0.3);
+  color: #f87171;
+  transform: translateY(-1px);
 }
 
 /* ── Team Grid ────────────────────────────────────────── */
@@ -249,6 +272,48 @@ body::before {
   padding: 2.5rem;
   grid-column: 1 / -1;
   font-size: 1rem;
+}
+
+.rival-counter-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  transition: transform 0.2s;
+  min-height: 280px;
+}
+
+.rival-counter-card:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--accent2);
+}
+
+.extreme-alert {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  color: #f87171;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+#rival-counters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1.5rem;
+}
+
+.btn-rival-suggest-add {
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .team-card {
@@ -356,16 +421,14 @@ body::before {
 .type-badge {
   display: inline-flex;
   align-items: center;
-  background: #333;
-  /* Dark charcoal base */
-  border-radius: 4px;
+  background: var(--type-color);
+  border-radius: 6px;
   overflow: hidden;
-  height: 26px;
-  min-width: 85px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-  transition: transform 0.2s;
-  cursor: default;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  margin: 2px;
+  height: 24px;
+  /* Constrain height */
 }
 
 .type-badge:hover {
@@ -373,15 +436,11 @@ body::before {
 }
 
 .badge-icon-part {
-  width: 30px;
-  height: 100%;
-  background: var(--type-color);
+  background: rgba(0, 0, 0, 0.15);
+  padding: 4px 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 4px;
-  /* Sloped divider effect */
-  clip-path: polygon(0 0, 100% 0, 75% 100%, 0 100%);
 }
 
 .badge-icon-part img {
@@ -891,17 +950,30 @@ body::before {
   margin-bottom: 2rem;
 }
 
-#type-chart-table {
+.type-chart-full {
+  width: 100%;
   border-collapse: collapse;
-  font-size: 0.72rem;
-  white-space: nowrap;
+  font-size: 0.75rem;
+  border: 1px solid var(--border);
 }
 
-#type-chart-table th,
-#type-chart-table td {
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  padding: 4px 6px;
+.type-chart-full th,
+.type-chart-full td {
+  border: 1px solid var(--border);
+  padding: 6px 4px;
   text-align: center;
+  min-width: 30px;
+}
+
+.type-chart-full thead th {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.type-chart-full tbody th {
+  background: rgba(255, 255, 255, 0.03);
+  text-align: left;
+  padding-left: 8px;
+  min-width: 80px;
 }
 
 .tc-corner {
@@ -939,7 +1011,7 @@ body::before {
 }
 
 .tc-super {
-  background: rgba(74, 222, 128, 0.2);
+  background: rgba(74, 222, 128, 0.15);
   color: #4ade80;
   font-weight: 700;
 }
@@ -947,13 +1019,11 @@ body::before {
 .tc-resist {
   background: rgba(248, 113, 113, 0.15);
   color: #f87171;
-  font-weight: 700;
 }
 
 .tc-immune {
-  background: rgba(100, 116, 139, 0.2);
-  color: #64748b;
-  font-weight: 700;
+  background: rgba(0, 0, 0, 0.3);
+  color: #94a3b8;
 }
 
 /* Dual type calculator */
@@ -1237,13 +1307,174 @@ body::before {
   }
 }
 
-/* Section dividers */
-.section-title {
-  font-size: 0.8rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 1.5px;
+
+/* ── Rival Sync Team ────────────────────────────────── */
+#rival-sync-team-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 1rem;
+  border-radius: 12px;
+  border: 1px dashed var(--border);
+}
+
+.sync-mini-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-card);
+  padding: 0.5rem 0.8rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  min-width: 150px;
+}
+
+.calc-form select {
+  background: #1a1d2e;
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  padding: 0.5rem;
+  border-radius: 8px;
+  font-family: 'Outfit', sans-serif;
+  cursor: pointer;
+  width: 100%;
+}
+
+.calc-form select:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.sync-mini-card img {
+  width: 32px;
+  height: 32px;
+}
+
+.sync-mini-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.rival-counters-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.btn-refresh {
+  background: rgba(124, 58, 237, 0.1);
+  border: 1px solid rgba(124, 58, 237, 0.2);
+  color: #a78bfa;
+  font-size: 0.75rem;
+  padding: 0.3rem 0.8rem;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-refresh:hover {
+  background: rgba(124, 58, 237, 0.2);
+  box-shadow: 0 0 10px rgba(124, 58, 237, 0.2);
+}
+
+/* ── Footer ────────────────────────────────────────────── */
+.app-footer {
+  margin-top: 5rem;
+  padding: 3rem 0;
+  background: rgba(0, 0, 0, 0.4);
+  border-top: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+}
+
+.footer-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   color: var(--text-muted);
-  margin-bottom: 0.75rem;
-  padding: 0 0.5rem;
+  font-size: 0.85rem;
+}
+
+.footer-brand {
+  font-weight: 700;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pokeball-deco-small {
+  color: #ef4444;
+  font-size: 1rem;
+}
+
+.footer-status {
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.4rem 1rem;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+#footer-team-status {
+  color: var(--accent2);
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .footer-content {
+    flex-direction: column;
+    gap: 1.5rem;
+    text-align: center;
+  }
+}
+
+/* ── Footer ────────────────────────────────────────────── */
+.app-footer {
+  margin-top: 5rem;
+  padding: 3rem 0;
+  background: rgba(0, 0, 0, 0.4);
+  border-top: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+}
+
+.footer-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.footer-brand {
+  font-weight: 700;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pokeball-deco-small {
+  color: #ef4444;
+  font-size: 1rem;
+}
+
+.footer-status {
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.4rem 1rem;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+#footer-team-status {
+  color: var(--accent2);
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .footer-content {
+    flex-direction: column;
+    gap: 1.5rem;
+    text-align: center;
+  }
 }

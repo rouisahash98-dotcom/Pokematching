@@ -4,9 +4,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Antigravity — Pokémon Team Builder</title>
+  <title>Battle Blueprint — Pokémon Trainer Lab</title>
   <meta name="description"
-    content="Build balanced Pokémon teams with type-synergy suggestions, weakness analysis, move recommendations, and a full type chart reference.">
+    content="A tactical Pokémon battle training hub for team analysis, rival profiling, and strategic counters.">
 
   <!-- Bootstrap 5 -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -21,8 +21,8 @@
   <!-- ── Header ─────────────────────────────────────────── -->
   <header class="app-header">
     <div>
-      <div class="logo-text"><span class="pokeball-deco">◉</span>Antigravity</div>
-      <div class="logo-sub">Pokémon Team Builder</div>
+      <div class="logo-text"><span class="pokeball-deco">◉</span>Battle Blueprint</div>
+      <div class="logo-sub">Pokémon Trainer Lab</div>
     </div>
   </header>
 
@@ -71,16 +71,21 @@
       <!-- Team Header & Counter -->
       <div class="team-header">
         <h4>Your Team</h4>
-        <span id="team-counter">0 / 6</span>
+        <div>
+          <span id="team-counter" class="me-3">0 / 6</span>
+          <button id="clear-team-btn" class="btn-clear" title="Clear All">🗑️ Clear</button>
+        </div>
       </div>
 
       <!-- Team Grid -->
       <div id="team-grid"></div>
 
       <!-- Suggestions -->
-      <div id="suggestions-section" style="display:none;">
-        <div class="section-title">💡 Suggested Team-Mates</div>
-        <div id="suggestions-label"></div>
+      <div id="suggestions-box" style="display:none;" class="mb-5">
+        <div class="suggestion-header d-flex justify-content-between align-items-center mb-3">
+          <div class="section-title mb-0">✨ Suggested Teammates</div>
+          <button id="refresh-teammates" class="btn-refresh">🔄 Refresh Suggestions</button>
+        </div>
         <div id="suggestions-grid"></div>
       </div>
 
@@ -152,13 +157,16 @@
 
       <div class="rival-header">
         <h4>🥊 Rival Analyzer</h4>
-        <div class="battle-format-toggle">
-          <label class="form-check-label me-2">Format:</label>
-          <div class="btn-group btn-group-sm" role="group">
-            <input type="radio" class="btn-check" name="rivalBattleFormat" id="rivalSingles" value="singles" checked>
-            <label class="btn btn-outline-primary" for="rivalSingles">Singles</label>
-            <input type="radio" class="btn-check" name="rivalBattleFormat" id="rivalDoubles" value="doubles">
-            <label class="btn btn-outline-primary" for="rivalDoubles">Doubles</label>
+        <div class="d-flex align-items-center gap-3">
+          <button id="clear-rival-btn" class="btn-clear-rival" title="Clear Rival Team">🗑️ Clear</button>
+          <div class="battle-format-toggle">
+            <label class="form-check-label me-2">Format:</label>
+            <div class="btn-group btn-group-sm" role="group">
+              <input type="radio" class="btn-check" name="rivalBattleFormat" id="rivalSingles" value="singles" checked>
+              <label class="btn btn-outline-primary" for="rivalSingles">Singles</label>
+              <input type="radio" class="btn-check" name="rivalBattleFormat" id="rivalDoubles" value="doubles">
+              <label class="btn btn-outline-primary" for="rivalDoubles">Doubles</label>
+            </div>
           </div>
         </div>
       </div>
@@ -174,17 +182,37 @@
 
       <!-- Rival Team Grid -->
       <div class="section-title">Opponent's Team</div>
-      <div id="rival-team-grid" class="mb-5"></div>
+      <div id="rival-team-grid" class="mb-4"></div>
+
+      <!-- Synchronized Your Team View -->
+      <div class="section-title">Your Current Team</div>
+      <div id="rival-sync-team-grid" class="mb-5"></div>
 
       <!-- Rival Counters -->
       <div id="rival-counters-section" style="display:none;">
-        <div class="section-title">🔥 Best Counters</div>
+        <div class="rival-counters-header">
+          <div class="section-title mb-0">🔥 Best Counters</div>
+          <button id="refresh-rival-suggestions" class="btn-refresh">🔄 Refresh Suggestions</button>
+        </div>
         <div id="rival-counters-label" class="mb-3"></div>
         <div id="rival-counters-grid"></div>
       </div>
 
     </div>
   </div><!-- /tab-content -->
+
+  <!-- ── Footer ─────────────────────────────────────────── -->
+  <footer class="app-footer">
+    <div class="container">
+      <div class="footer-content">
+        <div class="footer-brand">
+          <span class="pokeball-deco-small">◉</span> Battle Blueprint
+        </div>
+        <div class="footer-status">Tactical Synergy: <span id="footer-team-status">0 members</span></div>
+        <div class="footer-credits">Data from PokéAPI • Built for trainers</div>
+      </div>
+    </div>
+  </footer>
 
   <!-- Toast area -->
   <div id="toast-area" aria-live="polite"></div>
