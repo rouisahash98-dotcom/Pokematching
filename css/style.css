@@ -1,5 +1,5 @@
 /* ============================================================
-   style.css — Battle Blueprint Pokémon Trainer Lab
+   style.css — Antigravity Pokémon Team Builder
    Dark premium theme with glassmorphism and micro-animations
    ============================================================ */
 
@@ -62,7 +62,7 @@ body::before {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  text-shadow: 0 4px 15px rgba(124, 58, 237, 0.3);
+  text-shadow: none;
 }
 
 .app-header .logo-sub {
@@ -78,10 +78,6 @@ body::before {
   font-size: 2.5rem;
   animation: spin-float 6s ease-in-out infinite;
   margin-right: 0.5rem;
-  color: #ef4444;
-  /* Standard Pokeball red */
-  text-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
-  vertical-align: middle;
 }
 
 @keyframes spin-float {
@@ -231,29 +227,10 @@ body::before {
 #team-counter {
   font-weight: 700;
   font-size: 1.1rem;
-  color: var(--text-main);
-  opacity: 0.9;
-}
-
-.btn-clear,
-.btn-clear-rival {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  padding: 0.25rem 0.75rem;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-weight: 600;
-}
-
-.btn-clear:hover,
-.btn-clear-rival:hover {
-  background: rgba(248, 113, 113, 0.15);
-  border-color: rgba(248, 113, 113, 0.3);
-  color: #f87171;
-  transform: translateY(-1px);
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 /* ── Team Grid ────────────────────────────────────────── */
@@ -272,48 +249,6 @@ body::before {
   padding: 2.5rem;
   grid-column: 1 / -1;
   font-size: 1rem;
-}
-
-.rival-counter-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 1.25rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  position: relative;
-  transition: transform 0.2s;
-  min-height: 280px;
-}
-
-.rival-counter-card:hover {
-  background: var(--bg-card-hover);
-  border-color: var(--accent2);
-}
-
-.extreme-alert {
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
-  color: #f87171;
-  font-size: 0.85rem;
-  line-height: 1.4;
-}
-
-#rival-counters-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 1.5rem;
-}
-
-.btn-rival-suggest-add {
-  font-size: 0.75rem;
-  font-weight: 600;
-  border-radius: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 .team-card {
@@ -421,14 +356,16 @@ body::before {
 .type-badge {
   display: inline-flex;
   align-items: center;
-  background: var(--type-color);
-  border-radius: 6px;
+  background: #333;
+  /* Dark charcoal base */
+  border-radius: 4px;
   overflow: hidden;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  margin: 2px;
-  height: 24px;
-  /* Constrain height */
+  height: 26px;
+  min-width: 85px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s;
+  cursor: default;
 }
 
 .type-badge:hover {
@@ -436,11 +373,15 @@ body::before {
 }
 
 .badge-icon-part {
-  background: rgba(0, 0, 0, 0.15);
-  padding: 4px 6px;
+  width: 30px;
+  height: 100%;
+  background: var(--type-color);
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 4px;
+  /* Sloped divider effect */
+  clip-path: polygon(0 0, 100% 0, 75% 100%, 0 100%);
 }
 
 .badge-icon-part img {
@@ -918,8 +859,6 @@ body::before {
   color: var(--text-muted);
 }
 
-.item-suggestion {}
-
 .item-row {
   display: flex;
   align-items: center;
@@ -950,30 +889,17 @@ body::before {
   margin-bottom: 2rem;
 }
 
-.type-chart-full {
-  width: 100%;
+#type-chart-table {
   border-collapse: collapse;
-  font-size: 0.75rem;
-  border: 1px solid var(--border);
+  font-size: 0.72rem;
+  white-space: nowrap;
 }
 
-.type-chart-full th,
-.type-chart-full td {
-  border: 1px solid var(--border);
-  padding: 6px 4px;
+#type-chart-table th,
+#type-chart-table td {
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 4px 6px;
   text-align: center;
-  min-width: 30px;
-}
-
-.type-chart-full thead th {
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.type-chart-full tbody th {
-  background: rgba(255, 255, 255, 0.03);
-  text-align: left;
-  padding-left: 8px;
-  min-width: 80px;
 }
 
 .tc-corner {
@@ -1011,7 +937,7 @@ body::before {
 }
 
 .tc-super {
-  background: rgba(74, 222, 128, 0.15);
+  background: rgba(74, 222, 128, 0.2);
   color: #4ade80;
   font-weight: 700;
 }
@@ -1019,11 +945,13 @@ body::before {
 .tc-resist {
   background: rgba(248, 113, 113, 0.15);
   color: #f87171;
+  font-weight: 700;
 }
 
 .tc-immune {
-  background: rgba(0, 0, 0, 0.3);
-  color: #94a3b8;
+  background: rgba(100, 116, 139, 0.2);
+  color: #64748b;
+  font-weight: 700;
 }
 
 /* Dual type calculator */
@@ -1051,15 +979,102 @@ body::before {
 }
 
 .type-select {
+  display: none;
+  /* Hidden, but used for state */
+}
+
+.custom-select-container {
+  position: relative;
+  flex: 1;
+  min-width: 140px;
+  user-select: none;
+}
+
+.custom-select-trigger {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--text-main);
-  font-family: 'Outfit', sans-serif;
-  font-size: 0.9rem;
   padding: 0.45rem 0.75rem;
-  flex: 1;
-  min-width: 120px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.custom-select-trigger:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.custom-select-container.open .custom-select-trigger {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.2);
+}
+
+.custom-select-trigger::after {
+  content: "▼";
+  font-size: 0.7rem;
+  opacity: 0.5;
+  margin-left: 8px;
+  transition: transform 0.2s;
+}
+
+.custom-select-container.open .custom-select-trigger::after {
+  transform: rotate(180deg);
+}
+
+.custom-select-options {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  right: 0;
+  background: #1a1d2e;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  z-index: 1000;
+  max-height: 300px;
+  overflow-y: auto;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-10px);
+  transition: all 0.2s ease;
+  backdrop-filter: blur(12px);
+}
+
+.custom-select-container.open .custom-select-options {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.custom-select-option {
+  padding: 8px 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+  color: var(--text-main);
+  transition: background 0.15s;
+}
+
+.custom-select-option:hover {
+  background: rgba(124, 58, 237, 0.2);
+}
+
+.custom-select-option.selected {
+  background: rgba(124, 58, 237, 0.35);
+  font-weight: 700;
+}
+
+.custom-select-option .type-icon-small {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
 }
 
 .type-select:focus {
@@ -1193,18 +1208,18 @@ body::before {
 
 #rival-team-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 0.75rem;
 }
 
 .rival-mini-card {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(251, 113, 113, 0.1);
   border-radius: 12px;
-  padding: 0.75rem;
+  padding: 0.6rem;
   text-align: center;
   position: relative;
-  transition: transform 0.2s, border-color 0.2s;
+  transition: transform 0.2s, border-color 0.2s, background 0.2s;
 }
 
 .rival-mini-card:hover {
@@ -1267,20 +1282,172 @@ body::before {
 .rival-counter-card {
   position: relative;
   overflow: hidden;
+  padding: 0.7rem 0.5rem !important;
+}
+
+.rival-counter-card .suggestion-sprite {
+  width: 50px !important;
+  height: 50px !important;
+}
+
+.rival-counter-card .suggestion-name {
+  font-size: 0.85rem !important;
+}
+
+.rival-counter-card .type-badge {
+  padding: 2px 8px !important;
+  font-size: 0.6rem !important;
 }
 
 .rival-counter-card::before {
   content: "COUNTER";
   position: absolute;
-  top: 10px;
+  top: 8px;
   right: -25px;
   background: #4ade80;
   color: #0d0f1a;
-  font-size: 0.6rem;
+  font-size: 0.55rem;
   font-weight: 900;
-  padding: 2px 30px;
+  padding: 1px 30px;
   transform: rotate(45deg);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  z-index: 5;
+}
+
+#rival-counters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
+  gap: 0.85rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* ── Matchup Visualization ───────────────────────────── */
+.matchup-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.matchup-row {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  backdrop-filter: blur(8px);
+  position: relative;
+}
+
+.matchup-row::after {
+  content: "VS";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.75rem;
+  font-weight: 900;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.matchup-rival,
+.matchup-your-team {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.matchup-your-team {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+.matchup-poke-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.matchup-poke-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.matchup-poke-sprite {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
+.matchup-status {
+  position: absolute;
+  left: 50%;
+  top: -10px;
+  transform: translateX(-50%);
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  z-index: 2;
+}
+
+.status-win {
+  background: rgba(74, 222, 128, 0.2);
+  border: 1px solid #4ade80;
+  color: #4ade80;
+}
+
+.status-draw {
+  background: rgba(250, 204, 21, 0.1);
+  border: 1px solid #facc15;
+  color: #facc15;
+}
+
+.status-lose {
+  background: rgba(248, 113, 113, 0.2);
+  border: 1px solid #f87171;
+  color: #f87171;
+}
+
+.matchup-best-counters {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.mini-counter-token {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: help;
+  transition: transform 0.2s;
+}
+
+.mini-counter-token:hover {
+  transform: scale(1.15);
+  border-color: var(--accent);
+}
+
+.mini-counter-token img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
 }
 
 /* ── Responsive ──────────────────────────────────────── */
@@ -1307,174 +1474,316 @@ body::before {
   }
 }
 
+/* Section dividers */
+.section-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+  padding: 0 0.5rem;
+}
 
-/* ── Rival Sync Team ────────────────────────────────── */
-#rival-sync-team-grid {
+/* ── Section Title Row (title + refresh button) ─────── */
+.section-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1100px;
+  margin: 0 auto 0.5rem;
+}
+
+/* ── Refresh Button ────────────────────────────────────── */
+.refresh-btn {
+  background: rgba(124, 58, 237, 0.15);
+  border: 1px solid rgba(124, 58, 237, 0.35);
+  color: #a78bfa;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 14px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+  letter-spacing: 0.3px;
+}
+
+.refresh-btn:hover {
+  background: rgba(124, 58, 237, 0.3);
+  box-shadow: 0 0 12px rgba(124, 58, 237, 0.25);
+  transform: scale(1.04);
+}
+
+.refresh-btn:active {
+  transform: scale(0.97);
+}
+
+/* ── Weakness Badges on Team Cards ─────────────────────── */
+.weak-badges-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  background: rgba(255, 255, 255, 0.02);
-  padding: 1rem;
-  border-radius: 12px;
-  border: 1px dashed var(--border);
+  gap: 4px;
+  justify-content: center;
+  margin-top: 2px;
 }
 
-.sync-mini-card {
+.weakness-badge {
+  display: inline-block;
+  font-size: 0.6rem;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 10px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.x4-badge {
+  background: rgba(248, 113, 113, 0.2);
+  border: 1px solid rgba(248, 113, 113, 0.5);
+  color: #f87171;
+  text-shadow: 0 0 6px rgba(248, 113, 113, 0.4);
+}
+
+.x2-badge {
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  color: #fbbf24;
+}
+
+/* ── Replaced-Pokémon Indicator (top-left of team card) ─ */
+.replaced-indicator {
+  position: absolute;
+  top: 6px;
+  left: 6px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: var(--bg-card);
-  padding: 0.5rem 0.8rem;
+  gap: 3px;
+  background: rgba(124, 58, 237, 0.22);
+  border: 1px solid rgba(124, 58, 237, 0.45);
   border-radius: 8px;
-  border: 1px solid var(--border);
-  min-width: 150px;
+  padding: 3px 5px 3px 3px;
+  z-index: 2;
+  backdrop-filter: blur(6px);
+  animation: card-in 0.3s ease both;
 }
 
-.calc-form select {
-  background: #1a1d2e;
-  border: 1px solid var(--border);
-  color: var(--text-main);
-  padding: 0.5rem;
-  border-radius: 8px;
-  font-family: 'Outfit', sans-serif;
-  cursor: pointer;
-  width: 100%;
+.replaced-sprite {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
+  image-rendering: pixelated;
 }
 
-.calc-form select:focus {
-  border-color: var(--accent);
-  outline: none;
-}
-
-.sync-mini-card img {
-  width: 32px;
-  height: 32px;
-}
-
-.sync-mini-name {
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-
-.rival-counters-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
-.btn-refresh {
-  background: rgba(124, 58, 237, 0.1);
-  border: 1px solid rgba(124, 58, 237, 0.2);
+.revert-swap-btn {
+  background: rgba(167, 139, 250, 0.2);
+  border: 1px solid rgba(167, 139, 250, 0.4);
   color: #a78bfa;
   font-size: 0.75rem;
-  padding: 0.3rem 0.8rem;
-  border-radius: 20px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
   cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-refresh:hover {
-  background: rgba(124, 58, 237, 0.2);
-  box-shadow: 0 0 10px rgba(124, 58, 237, 0.2);
-}
-
-/* ── Footer ────────────────────────────────────────────── */
-.app-footer {
-  margin-top: 5rem;
-  padding: 3rem 0;
-  background: rgba(0, 0, 0, 0.4);
-  border-top: 1px solid var(--border);
-  backdrop-filter: blur(10px);
-}
-
-.footer-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  color: var(--text-muted);
-  font-size: 0.85rem;
-}
-
-.footer-brand {
-  font-weight: 700;
-  color: var(--text-main);
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+  transition: background 0.2s, transform 0.15s;
 }
 
-.pokeball-deco-small {
-  color: #ef4444;
-  font-size: 1rem;
+.revert-swap-btn:hover {
+  background: rgba(167, 139, 250, 0.45);
+  transform: scale(1.15) rotate(-15deg);
 }
 
-.footer-status {
-  background: rgba(255, 255, 255, 0.03);
-  padding: 0.4rem 1rem;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+/* ── Swappable Mini Suggestions in Evaluator ────────────── */
+.mini-poke-suggestion.swap-suggestion-btn {
+  cursor: pointer;
+  transition: transform 0.2s, background 0.2s, border-color 0.2s, box-shadow 0.2s;
+  border: 1px solid rgba(6, 182, 212, 0.2);
 }
 
-#footer-team-status {
+.mini-poke-suggestion.swap-suggestion-btn:hover {
+  background: rgba(6, 182, 212, 0.15);
+  border-color: rgba(6, 182, 212, 0.55);
+  box-shadow: 0 0 10px rgba(6, 182, 212, 0.2);
+  transform: translateY(-2px) scale(1.04);
+}
+
+.swap-hint {
+  font-size: 0.62rem;
   color: var(--accent2);
-  font-weight: 600;
-}
-
-@media (max-width: 768px) {
-  .footer-content {
-    flex-direction: column;
-    gap: 1.5rem;
-    text-align: center;
-  }
-}
-
-/* ── Footer ────────────────────────────────────────────── */
-.app-footer {
-  margin-top: 5rem;
-  padding: 3rem 0;
-  background: rgba(0, 0, 0, 0.4);
-  border-top: 1px solid var(--border);
-  backdrop-filter: blur(10px);
-}
-
-.footer-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  color: var(--text-muted);
-  font-size: 0.85rem;
-}
-
-.footer-brand {
   font-weight: 700;
-  color: var(--text-main);
+  opacity: 0.8;
+  margin-left: 2px;
+}
+
+/* Warning-critical variant (3+ weak members) */
+.warning-block.warning-critical {
+  border-left: 3px solid #f87171;
+  padding-left: 0.6rem;
+}
+
+.mini-poke-vulnerable {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-}
-
-.pokeball-deco-small {
-  color: #ef4444;
-  font-size: 1rem;
-}
-
-.footer-status {
+  gap: 8px;
   background: rgba(255, 255, 255, 0.03);
-  padding: 0.4rem 1rem;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
 }
 
-#footer-team-status {
+.mini-poke-vulnerable:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.mini-poke-vulnerable.selected {
+  background: rgba(124, 58, 237, 0.15);
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(124, 58, 237, 0.3);
+}
+
+.mini-poke-vulnerable.selected::after {
+  content: "🎯 Target";
+  font-size: 0.65rem;
+  background: var(--accent);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 8px;
+  margin-left: 4px;
+  font-weight: 700;
+}
+
+.replace-target-name {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ── App Footer ────────────────────────────────────────── */
+.app-footer {
+  text-align: center;
+  padding: 1.5rem 1rem 2rem;
+  margin-top: 2rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  justify-content: center;
+  align-items: center;
+}
+
+.footer-logo {
+  font-weight: 800;
+  font-size: 0.95rem;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.footer-sep {
+  color: var(--border);
+}
+
+.footer-copy {
+  opacity: 0.6;
+}
+
+.app-footer a {
   color: var(--accent2);
+  text-decoration: none;
   font-weight: 600;
+  transition: opacity 0.2s;
 }
 
-@media (max-width: 768px) {
-  .footer-content {
-    flex-direction: column;
-    gap: 1.5rem;
-    text-align: center;
-  }
+.app-footer a:hover {
+  opacity: 0.75;
+}
+
+/* ── Weakness Overview Table ──────────────────────────── */
+.weakness-overview-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  margin-bottom: 2rem;
+}
+
+.weakness-overview-table th {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.weakness-overview-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 0.85rem;
+  vertical-align: middle;
+}
+
+.weakness-overview-table tr:last-child td {
+  border-bottom: none;
+}
+
+.weakness-overview-table .poke-cell {
+  display: flex;
+  align-items: center;
+  min-width: 180px;
+}
+
+.weakness-overview-table .mini-sprite {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+/* ── Strength Summary Enhancements ─────────────────────── */
+.strength-summary-wrapper {
+  background: rgba(74, 222, 128, 0.05);
+  border: 1px solid rgba(74, 222, 128, 0.15);
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-top: 1.5rem;
+}
+
+.strength-tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.strength-tag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+}
+
+.strength-members {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-weight: 500;
 }

@@ -1,5 +1,5 @@
 // ============================================================
-// app.js — Battle Blueprint Pokémon Trainer Lab
+// app.js — Battle Blueprint Pokémon Team Builder
 // Core jQuery logic: search, team, suggestions, evaluator, moves, types
 // ============================================================
 
@@ -8,6 +8,12 @@ $(async function () {
     // ── State ──────────────────────────────────────────────────
     let team = []; // array of enriched Pokémon objects (max 6)
     let rivalTeam = []; // array of opponent Pokémon (max 6)
+
+    // Suggestion refresh tracking
+    let lastSuggestionBatch = new Set(); // names shown in immediately previous batch
+    let lastCounterBatch = new Set(); // names shown in immediately previous rival counter batch
+    let suggestionRefreshCount = 0;      // >0 means full shuffle mode
+    let counterRefreshCount = 0;
 
     // Declared here (top of scope) so they are available immediately on boot.
     // const has a Temporal Dead Zone — declaring mid-function would crash when
@@ -46,6 +52,15 @@ $(async function () {
     if (team.length === 6) runTeamEvaluator();
     else if (team.length > 0) renderSuggestions();
     initRivalAutocomplete();
+    runMatchupAnalysis(); // Initial check in case team is restored
+
+    // Refresh buttons
+    $('#refresh-suggestions-btn').on('click', function () {
+        renderSuggestions(true);
+    });
+    $('#refresh-counters-btn').on('click', function () {
+        runRivalAnalysis(null, true);
+    });
 
     // ── Search / Autocomplete ───────────────────────────────────
     function initAutocomplete() {
@@ -118,8 +133,8 @@ $(async function () {
     }
 
     // ── Add Pokémon ────────────────────────────────────────────
-    async function addPokemon(name) {
-        if (team.length >= 6) {
+    async function addPokemon(name, insertAtIdx = null, replacedByData = null) {
+        if (insertAtIdx === null && team.length >= 6) {
             showToast('Your team is full! Remove a Pokémon first.', 'warning');
             return;
         }
@@ -147,7 +162,7 @@ $(async function () {
             const stats = parseStats(data.stats);
             const isLegendary = LEGENDARY_IDS.has(data.id);
 
-            team.push({
+            const newEntry = {
                 id: data.id,
                 name: data.name,
                 displayName: capitalise(data.name),
@@ -157,8 +172,18 @@ $(async function () {
                 sprite: spriteUrl(data.id),
                 artwork: artworkUrl(data.id),
                 movesRaw: data.moves.slice(0, 40),
-                abilities: data.abilityDetails || []
-            });
+                replacedBy: replacedByData || null   // stores swapped-out Pokémon
+            };
+
+            if (insertAtIdx !== null && insertAtIdx >= 0 && insertAtIdx < team.length) {
+                team.splice(insertAtIdx, 1, newEntry);
+            } else {
+                team.push(newEntry);
+            }
+
+            // Reset suggestion tracking whenever the team composition changes
+            lastSuggestionBatch = new Set();
+            suggestionRefreshCount = 0;
 
             $('#search-input').val('');
             saveTeam();
@@ -166,6 +191,7 @@ $(async function () {
             await renderSuggestions();
             if (team.length === 6) runTeamEvaluator();
             else clearEvaluator();
+            runMatchupAnalysis(); // Update matchup whenever team changes
 
         } catch (err) {
             console.error('Error rendering Pokémon after successful fetch:', err);
@@ -179,64 +205,32 @@ $(async function () {
     $(document).on('click', '.remove-btn', async function () {
         const idx = parseInt($(this).data('idx'));
         team.splice(idx, 1);
+        lastSuggestionBatch = new Set();
+        suggestionRefreshCount = 0;
         saveTeam();
         renderTeam();
         await renderSuggestions();
         clearEvaluator();
         updateMovesTab();
+        runMatchupAnalysis(); // Update matchup whenever team changes
     });
 
-    function renderSyncTeam() {
-        const $grid = $('#rival-sync-team-grid');
-        if (!$grid.length) return;
-        $grid.empty();
-        if (team.length === 0) {
-            $grid.html('<span class="text-muted p-2" style="font-size:0.8rem">No members in Team Builder yet.</span>');
-            return;
-        }
-        team.forEach(p => {
-            const sprite = p.sprite || spriteUrl(p.id);
-            $grid.append(`
-                <div class="sync-mini-card">
-                    <img src="${sprite}" alt="${p.displayName}">
-                    <span class="sync-mini-name">${p.displayName}</span>
-                </div>
-            `);
-        });
-    }
-
-    // ── Clear Methods ──────────────────────────────────────────
-    $('#clear-team-btn').on('click', function () {
-        if (team.length === 0) return;
-        if (confirm('Wipe your entire team? This cannot be undone.')) {
-            team = [];
-            saveTeam();
-            renderTeam();
-            renderSuggestions();
-            clearEvaluator();
-            runRivalAnalysis(); // Update counter suggestions if tab 4 is open
-            showToast('Team cleared!', 'info');
-        }
-    });
-
-    $('#clear-rival-btn').on('click', function () {
-        if (rivalTeam.length === 0) return;
-        rivalTeam = [];
-        renderRivalTeam();
-        runRivalAnalysis();
-        showToast('Rival team cleared!', 'info');
-    });
-
-    // Refresh Rival Suggestions
-    $(document).on('click', '#refresh-rival-suggestions', function () {
-        runRivalAnalysis();
-        showToast('Refreshing tactical options...', 'info');
-    });
-
-    // Refresh Teammates
-    $(document).on('click', '#refresh-teammates', function () {
-        renderSuggestions();
-        showToast('Finding new teammates...', 'info');
+    // ── Revert Swap ────────────────────────────────────────────
+    $(document).on('click', '.revert-swap-btn', async function (e) {
+        e.stopPropagation();
+        const idx = parseInt($(this).closest('.team-card').data('idx'));
+        const current = team[idx];
+        if (!current || !current.replacedBy) return;
+        const orig = current.replacedBy;
+        team.splice(idx, 1, { ...orig, replacedBy: null });
+        lastSuggestionBatch = new Set();
+        suggestionRefreshCount = 0;
+        saveTeam();
+        renderTeam();
+        await renderSuggestions();
+        if (team.length === 6) runTeamEvaluator();
+        else clearEvaluator();
+        showToast(`Restored ${orig.displayName}! ↩`, 'success');
     });
 
     // ── Render Team Grid ───────────────────────────────────────
@@ -250,37 +244,32 @@ $(async function () {
         }
 
         team.forEach((p, idx) => {
-            const types = p.types || [];
-            const abilities = p.abilities || [];
-            const typeBadges = types.map(typeBadge).join('');
+            const typeBadges = p.types.map(typeBadge).join('');
             const legendBadge = p.isLegendary ? '<span class="legendary-badge">★ Legendary</span>' : '';
+
+            // Replaced indicator (top-left corner)
+            const replacedHtml = p.replacedBy ? `
+                <div class="replaced-indicator" title="Replaced ${p.replacedBy.displayName} — click ↩ to revert">
+                    <img src="${p.replacedBy.sprite}" alt="${p.replacedBy.displayName}" class="replaced-sprite">
+                    <button class="revert-swap-btn" title="Revert to ${p.replacedBy.displayName}">↩</button>
+                </div>` : '';
+
             $grid.append(`
-        <div class="team-card animate-in" data-idx="${idx}">
+        <div class="team-card" data-idx="${idx}">
           <button class="remove-btn" data-idx="${idx}" title="Remove">✕</button>
+          ${replacedHtml}
           ${legendBadge}
           <img class="pokemon-sprite" src="${p.artwork}" alt="${p.displayName}"
                onerror="this.src='${p.sprite}'">
           <div class="pokemon-name">${p.displayName}</div>
-          <div class="pokemon-types">${typeBadges}</div>
-          <div class="pokemon-abilities-mini mt-1">
-             ${abilities.map(a => `
-                <span class="ability-tag-mini ${a.isHidden ? 'ability-hidden' : ''}" 
-                      title="${capitalise(a.name.replace('-', ' '))}: ${a.description}">
-                    ${capitalise(a.name.replace('-', ' '))}
-                </span>
-             `).join('')}
-          </div>
+          <div class="type-badges">${typeBadges}</div>
           <div class="stat-bar-mini">${miniStats(p.stats)}</div>
         </div>
       `);
         });
 
-        // Update synchronized team in Rival Tab
-        renderSyncTeam();
-
-        // Team counter & Footer status
+        // Team counter
         $('#team-counter').text(`${team.length} / 6`);
-        $('#footer-team-status').text(`${team.length} member${team.length === 1 ? '' : 's'}`);
         updateMovesTab();
     }
 
@@ -300,7 +289,7 @@ $(async function () {
     }
 
     // ── Suggestion Engine ──────────────────────────────────────
-    async function renderSuggestions() {
+    async function renderSuggestions(isRefresh = false) {
         const $box = $('#suggestions-section');
         if (team.length === 0 || team.length >= 6) {
             $box.hide(); return;
@@ -309,8 +298,21 @@ $(async function () {
         $box.show();
         $('#suggestions-grid').html('<div class="loading-spinner"><div class="spinner"></div><p>Finding great team-mates…</p></div>');
 
+        // Manage refresh counter — first press excludes last batch, subsequent presses shuffle freely
+        if (isRefresh) {
+            suggestionRefreshCount++;
+        }
+
         const legendaryCount = team.filter(p => p.isLegendary).length;
         const weaknesses = aggregateWeaknesses();
+
+        // Compute the team's CURRENT x4 and x2 weakness sets so we don't introduce new ones
+        const currentX4 = new Set();
+        const currentX2 = new Set();
+        team.forEach(p => {
+            getAllWeaknesses(p.types, 4).forEach(t => currentX4.add(t));
+            getAllWeaknesses(p.types, 2).forEach(t => currentX2.add(t));
+        });
 
         // Top 3 uncovered weaknesses
         const topWeak = Object.entries(weaknesses)
@@ -330,7 +332,6 @@ $(async function () {
             try {
                 const res = await fetch(`https://pokeapi.co/api/v2/type/${weakType}`);
                 const data = await res.json();
-                // Get Pokémon of this type (they provide coverage against our weakness)
                 const pkmnOfType = data.pokemon
                     .map(p => p.pokemon.name)
                     .filter(n => !team.some(t => t.name === n));
@@ -350,15 +351,20 @@ $(async function () {
             } catch (e) { /* skip */ }
         }
 
-        // Deduplicate, filter to IDs ≤ 1025, shuffle, pick 5
+        // Deduplicate & filter exotic forms
         candidates = [...new Set(candidates)]
             .filter(n => {
-                // Accept only base-game Pokémon (no forms with hyphens except standard ones)
                 const hasExoticForm = /-(?:mega|gmax|alola|galar|hisui|paldea|totem|partner|starter|original|zen|therian|resolute|black|white|pirouette|ash|eternal|-o|-f|-m|-s|-10|50|complete|dusk|dawn|midday|midnight|school|disguised|busted)-?/.test(n);
                 return !hasExoticForm;
             });
+
+        // On first refresh: exclude last batch. On further refreshes: pure shuffle
+        if (isRefresh && suggestionRefreshCount === 1 && lastSuggestionBatch.size > 0) {
+            candidates = candidates.filter(n => !lastSuggestionBatch.has(n));
+        }
+
         shuffle(candidates);
-        const picked = candidates.slice(0, 20); // fetch up to 20, show best 5
+        const picked = candidates.slice(0, 30); // fetch more to account for weakness filtering
 
         const enriched = (await Promise.allSettled(picked.map(n => fetchPokemon(n))))
             .filter(r => r.status === 'fulfilled')
@@ -366,6 +372,10 @@ $(async function () {
             .filter(d => {
                 if (legendaryCount >= 1 && LEGENDARY_IDS.has(d.id)) return false;
                 if (d.id > 1025) return false;
+                // Reject if this candidate adds a NEW x4 weakness not already on the team
+                const cTypes = parseTypes(d.types);
+                const newX4 = getAllWeaknesses(cTypes, 4).filter(t => !currentX4.has(t));
+                if (newX4.length > 0) return false;
                 return true;
             })
             .slice(0, 5);
@@ -376,11 +386,10 @@ $(async function () {
         }
 
         // Score each candidate by how many of topWeak it covers
-        enriched.sort((a, b) => {
-            const scoreA = coverageScore(a, topWeak);
-            const scoreB = coverageScore(b, topWeak);
-            return scoreB - scoreA;
-        });
+        enriched.sort((a, b) => coverageScore(b, topWeak) - coverageScore(a, topWeak));
+
+        // Record this batch so next refresh can skip it
+        lastSuggestionBatch = new Set(enriched.map(d => d.name));
 
         const $grid = $('#suggestions-grid');
         $grid.empty();
@@ -410,16 +419,6 @@ $(async function () {
         const name = $(this).data('name');
         await addPokemon(name);
     });
-
-    $(document).on('click', '.btn-rival-suggest-add', async function () {
-        const name = $(this).data('name');
-        const $btn = $(this);
-        $btn.prop('disabled', true).html('Adding...');
-        await addPokemon(name);
-        // Refresh analysis to remove added Pokémon from suggestions
-        runRivalAnalysis();
-    });
-
 
     // ── Type Coverage Helpers ───────────────────────────────────
     function aggregateWeaknesses() {
@@ -453,6 +452,14 @@ $(async function () {
         return score;
     }
 
+    // Returns all attacking types that hit the given type combination at the specified multiplier (2 or 4)
+    function getAllWeaknesses(types, multiplier) {
+        return ALL_TYPES.filter(at => {
+            const m = getCombinedEffectiveness(at, types[0], types[1]);
+            return m === multiplier;
+        });
+    }
+
     // ── Team Evaluator ─────────────────────────────────────────
     function runTeamEvaluator() {
         const $panel = $('#evaluator-panel');
@@ -462,12 +469,11 @@ $(async function () {
         // Defense Matrix
         const matrix = {};
         ALL_TYPES.forEach(at => {
-            matrix[at] = { weak: 0, superWeak: 0, resist: 0, immune: 0 };
+            matrix[at] = { weak: 0, resist: 0, immune: 0 };
             team.forEach(p => {
                 const m = getCombinedEffectiveness(at, p.types[0], p.types[1]);
                 if (m === 0) matrix[at].immune++;
                 else if (m < 1) matrix[at].resist++;
-                else if (m > 2.25) matrix[at].superWeak++; // 4x
                 else if (m > 1) matrix[at].weak++;
             });
         });
@@ -479,29 +485,14 @@ $(async function () {
 
         const criticals = [];
         ALL_TYPES.forEach(at => {
-            const { weak, superWeak, resist, immune } = matrix[at];
-            const isCritical = (weak + superWeak) >= 3 || superWeak >= 1;
+            const { weak, resist, immune } = matrix[at];
+            const isCritical = weak >= 3;
             if (isCritical) criticals.push(at);
-
-            let statusClass = 'status-ok';
-            let statusLabel = '▸ Manageable';
-
-            if (superWeak >= 1) {
-                statusClass = 'status-extreme';
-                statusLabel = '🛑 EXTREME (4x)';
-            } else if (isCritical) {
-                statusClass = 'status-critical';
-                statusLabel = '⚠️ Critical';
-            } else if (weak === 0) {
-                statusClass = 'status-safe';
-                statusLabel = '✅ Safe';
-            }
-
-            tableHtml += `<tr class="${statusClass === 'status-extreme' ? 'row-extreme' : isCritical ? 'row-critical' : ''}">
+            const statusClass = isCritical ? 'status-critical' : weak === 0 ? 'status-safe' : 'status-ok';
+            const statusLabel = isCritical ? '⚠️ Critical' : weak === 0 ? '✅ Safe' : '▸ Manageable';
+            tableHtml += `<tr class="${isCritical ? 'row-critical' : ''}">
         <td>${typeBadge(at)}</td>
-        <td class="center">
-            ${weak} ${superWeak > 0 ? `<span class="super-weak-count" title="4x Weakness">(${superWeak}!!)</span>` : ''}
-        </td>
+        <td class="center">${weak}</td>
         <td class="center">${resist}</td>
         <td class="center">${immune}</td>
         <td class="${statusClass}">${statusLabel}</td>
@@ -510,60 +501,107 @@ $(async function () {
         tableHtml += '</tbody></table>';
         $('#defense-matrix-container').html(tableHtml);
 
-        // Critical warnings + replacement suggestions
-        if (criticals.length > 0) {
+        // Weakness Overview Table
+        let weaknessOverviewHtml = `
+            <div class="section-title" style="margin-top:1.5rem;">Weakness Overview</div>
+            <table class="weakness-overview-table">
+                <thead>
+                    <tr>
+                        <th>Pokémon</th>
+                        <th>Types</th>
+                        <th>Weaknesses (4× / 2×)</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        team.forEach(p => {
+            const x4w = getAllWeaknesses(p.types, 4);
+            const x2w = getAllWeaknesses(p.types, 2);
+
+            const x4Badges = x4w.map(t => `<span class="weakness-badge x4-badge">x4 ${capitalise(t)}</span>`).join(' ');
+            const x2Badges = x2w.map(t => `<span class="weakness-badge x2-badge">x2 ${capitalise(t)}</span>`).join(' ');
+
+            weaknessOverviewHtml += `
+                <tr>
+                    <td class="poke-cell">
+                        <img src="${p.sprite}" alt="${p.displayName}" class="mini-sprite me-2">
+                        <strong>${p.displayName}</strong>
+                    </td>
+                    <td>${p.types.map(typeBadge).join(' ')}</td>
+                    <td>
+                        <div class="d-flex flex-wrap gap-1">
+                            ${x4Badges} ${x2Badges || (x4Badges ? '' : '<span class="text-muted" style="font-size:0.7rem;">None</span>')}
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+
+        weaknessOverviewHtml += '</tbody></table>';
+        $('#weakness-overview-container').html(weaknessOverviewHtml);
+
+        // Weakness warnings + replacement suggestions (all weaknesses, not only criticals)
+        const allWeakTypes = ALL_TYPES.filter(at => matrix[at].weak >= 2); // 2+ members weak = significant
+
+        if (allWeakTypes.length > 0) {
             let warnHtml = '<div class="critical-warnings">';
-            warnHtml += '<h5>⚠️ Critical Weaknesses Detected</h5>';
-            criticals.forEach(ct => {
+            const criticalTypes = allWeakTypes.filter(at => matrix[at].weak >= 3);
+            const regularTypes = allWeakTypes.filter(at => matrix[at].weak === 2);
+
+            if (criticalTypes.length > 0) {
+                warnHtml += '<h5>⚠️ Critical Weaknesses Detected</h5>';
+            } else {
+                warnHtml += '<h5>⚠️ Team Weaknesses Detected</h5>';
+            }
+
+            allWeakTypes.forEach(ct => {
                 const counterTypes = getResistingTypes(ct).slice(0, 3);
                 const mostVuln = [...team].sort((a, b) => {
                     const ma = getCombinedEffectiveness(ct, a.types[0], a.types[1]);
                     const mb = getCombinedEffectiveness(ct, b.types[0], b.types[1]);
                     return mb - ma;
                 })[0];
+                const mostVulnIdx = team.indexOf(mostVuln);
 
                 const vulnerableMembers = team.filter(p => {
                     const eff = getCombinedEffectiveness(ct, p.types[0], p.types[1]);
                     return eff > 1;
                 });
-                const vulnerableHtm = vulnerableMembers.map(p => `
-                    <div class="mini-poke-vulnerable" title="${p.displayName} is weak to ${ct}">
+                const vulnerableHtm = vulnerableMembers.map(p => {
+                    const isSelected = p.id === mostVuln.id;
+                    return `
+                    <div class="mini-poke-vulnerable${isSelected ? ' selected' : ''}" 
+                         data-idx="${team.indexOf(p)}" 
+                         data-name="${p.name}"
+                         data-display-name="${p.displayName}"
+                         title="Click to set ${p.displayName} as the swap target">
                         <img src="${spriteUrl(p.id)}" alt="${p.displayName}" class="mini-sprite">
                         <span>${p.displayName}</span>
-                    </div>
-                `).join('');
+                    </div>`;
+                }).join('');
 
-                const superVuln = team.filter(p => {
-                    const eff = getCombinedEffectiveness(ct, p.types[0], p.types[1]);
-                    return eff > 2.25;
-                });
-
-                const superVulnHtm = superVuln.length > 0 ? `
-                    <div class="extreme-alert mb-2">
-                        🛑 <strong>EXTREME VULNERABILITY (4x):</strong> ${superVuln.map(p => p.displayName).join(', ')}
-                    </div>
-                ` : '';
-
-                warnHtml += `<div class="warning-block">
+                const isCrit = matrix[ct].weak >= 3;
+                warnHtml += `<div class="warning-block${isCrit ? ' warning-critical' : ''}" data-type="${ct}">
           <div class="weakness-summary mb-2">
-            ${superVuln.length > 0 ? '<span class="badge bg-danger me-2">EXTREME</span>' : ''}
-            Your team has <strong>${matrix[ct].weak + matrix[ct].superWeak} members</strong> weak to ${typeBadge(ct)}:
-          </div>
-          ${superVulnHtm}
-          <div class="vulnerable-members-row mb-3">
-            ${vulnerableHtm}
+            Your team has <strong>${matrix[ct].weak} members</strong> weak to ${typeBadge(ct)}:
+            <div class="vulnerable-list mt-2">${vulnerableHtm}</div>
           </div>
           <div class="counter-suggestions-row">
-            <span class="suggestion-intro">Consider adding:</span>
+            <span class="suggestion-intro">Click a Pokémon below to replace <strong class="replace-target-name">${mostVuln.displayName}</strong>:</span>
             ${counterTypes.map(t => {
                     const currentTeamNames = team.map(p => p.name.toLowerCase());
                     const examplesHtm = (TYPE_EXAMPLES[t] || [])
                         .filter(ex => !currentTeamNames.includes(ex.name.toLowerCase()))
                         .slice(0, 3)
                         .map(ex => `
-                <div class="mini-poke-suggestion">
+                <div class="mini-poke-suggestion swap-suggestion-btn"
+                     data-name="${ex.name}" data-replace-idx="${mostVulnIdx}"
+                     data-replaced-name="${mostVuln.name}"
+                     title="Click to replace ${mostVuln.displayName} with ${ex.name}">
                   <img src="${spriteUrl(ex.id)}" alt="${ex.name}" class="mini-sprite">
                   <span>${ex.name}</span>
+                  <span class="swap-hint">↔ Swap</span>
                 </div>
               `).join('');
                     return `
@@ -573,11 +611,7 @@ $(async function () {
                 </div>`;
                 }).join('')}
           </div>
-          <p class="mt-2"><small>Replacing <strong>${mostVuln.displayName}</strong> would help the most.</small></p>
         </div>`;
-
-
-
             });
             warnHtml += '</div>';
             $('#critical-warnings').html(warnHtml);
@@ -586,27 +620,90 @@ $(async function () {
         }
 
         // Strength summary
-        const strongAgainst = ALL_TYPES.filter(at => {
-            let superHitters = 0;
+        const strongAgainstData = {};
+        ALL_TYPES.forEach(at => {
             team.forEach(p => {
                 p.types.forEach(pt => {
-                    if (getEffectiveness(pt, at) > 1) superHitters++;
+                    if (getEffectiveness(pt, at) > 1) {
+                        if (!strongAgainstData[at]) strongAgainstData[at] = [];
+                        if (!strongAgainstData[at].includes(p.displayName)) {
+                            strongAgainstData[at].push(p.displayName);
+                        }
+                    }
                 });
             });
-            return superHitters >= 2;
         });
 
-        if (strongAgainst.length) {
-            const labels = strongAgainst.map(typeBadge).join(' ');
-            $('#strength-summary').html(`<p><strong>💪 Your team hits hard against:</strong> ${labels}</p>`);
+        const strongTypes = Object.keys(strongAgainstData).filter(t => strongAgainstData[t].length >= 2);
+
+        if (strongTypes.length) {
+            const labels = strongTypes.map(t => {
+                const members = strongAgainstData[t].join(', ');
+                return `<div class="strength-tag">${typeBadge(t)} <span class="strength-members">(${members})</span></div>`;
+            }).join('');
+            $('#strength-summary').html(`
+                <div class="strength-summary-wrapper">
+                    <strong>💪 Your team hits hard against:</strong>
+                    <div class="strength-tags-container mt-2">${labels}</div>
+                </div>
+            `);
         } else {
             $('#strength-summary').html('');
         }
     }
 
+    // ── Swap Suggestion Click ──────────────────────────────────
+    $(document).on('click', '.swap-suggestion-btn', async function () {
+        const suggestName = $(this).data('name');
+        const replaceIdx = parseInt($(this).data('replace-idx'));
+        if (isNaN(replaceIdx) || replaceIdx < 0 || replaceIdx >= team.length) return;
+
+        const outgoing = team[replaceIdx];
+        // Store the full outgoing member so we can revert later
+        const replacedByData = {
+            id: outgoing.id,
+            name: outgoing.name,
+            displayName: outgoing.displayName,
+            types: outgoing.types,
+            stats: outgoing.stats,
+            isLegendary: outgoing.isLegendary,
+            sprite: outgoing.sprite,
+            artwork: outgoing.artwork,
+            movesRaw: outgoing.movesRaw || []
+        };
+
+        showToast(`Swapping ${outgoing.displayName} → ${capitalise(suggestName)}…`, 'info');
+        await addPokemon(suggestName, replaceIdx, replacedByData);
+    });
+
     function clearEvaluator() {
         $('#evaluator-panel').hide();
     }
+
+    // ── Select Swap Target ─────────────────────────────────────
+    $(document).on('click', '.mini-poke-vulnerable', function () {
+        const $this = $(this);
+        const $block = $this.closest('.warning-block');
+        const newIdx = $this.data('idx');
+        const newName = $this.data('name');
+        const dispName = $this.data('display-name');
+
+        // Toggle selected class
+        $block.find('.mini-poke-vulnerable').removeClass('selected');
+        $this.addClass('selected');
+
+        // Update instruction text
+        $block.find('.replace-target-name').text(dispName);
+
+        // Update all swap suggestion buttons in this block
+        $block.find('.swap-suggestion-btn').each(function () {
+            const $btn = $(this);
+            $btn.data('replace-idx', newIdx);
+            $btn.data('replaced-name', newName);
+            const suggestName = capitalise($btn.data('name'));
+            $btn.attr('title', `Click to replace ${dispName} with ${suggestName}`);
+        });
+    });
 
     async function addRivalPokemon(name) {
         if (rivalTeam.length >= 6) {
@@ -648,42 +745,95 @@ $(async function () {
             $grid.append(`
                 <div class="rival-mini-card">
                     <button class="rival-remove-btn" data-idx="${idx}">✕</button>
-                    <img src="${p.sprite}" alt="${p.displayName}" class="rival-mini-sprite">
+                    <img src="${p.sprite}" alt="${p.displayName}" class="rival-mini-sprite" onerror="this.src='${artworkUrl(p.id)}'">
                     <div class="rival-mini-name">${p.displayName}</div>
                     <div class="type-badges">${p.types.map(typeBadge).join('')}</div>
                 </div>
             `);
         });
+
+        runMatchupAnalysis();
     }
 
-    // Add suggested rival counter to main team
-    $(document).on('click', '.btn-rival-suggest-add', async function () {
-        const name = $(this).data('name');
-        if (team.length >= 6) {
-            showToast('Team is full! Remove someone first.', 'warning');
+    function runMatchupAnalysis() {
+        console.log('Running Matchup Analysis...', { rivalCount: rivalTeam.length, teamCount: team.length });
+        const $section = $('#rival-matchup-section');
+        const $container = $('#matchup-container');
+
+        if (rivalTeam.length === 0 || team.length === 0) {
+            console.log('Matchup analysis skipped: empty team(s).');
+            $section.hide();
             return;
         }
-        await addPokemon(name);
-        showToast(`Added ${capitalise(name)} to your Team Builder!`, 'success');
-        // Visually remove it from the suggestions
-        $(this).closest('.rival-counter-card').fadeOut(400, function () {
-            $(this).remove();
-            if ($('#rival-counters-grid').children(':visible').length === 0) {
-                runRivalAnalysis(true); // silent refresh
-            }
+
+        $section.show();
+        $container.empty();
+
+        rivalTeam.forEach(rival => {
+            // Find best counter in OUR team
+            const bestCounters = team.map(member => {
+                let score = 0;
+                // Offense: Can we hit them?
+                member.types.forEach(mt => {
+                    const eff = getCombinedEffectiveness(mt, rival.types[0], rival.types[1]);
+                    if (eff > 1) score += (eff * 2);
+                    if (eff === 0) score -= 2;
+                });
+                // Defense: Can they hit us?
+                rival.types.forEach(rt => {
+                    const eff = getCombinedEffectiveness(rt, member.types[0], member.types[1]);
+                    if (eff < 1) score += (1 / (eff || 0.1)) * 2;
+                    if (eff > 1) score -= (eff * 3);
+                });
+                return { member, score };
+            }).sort((a, b) => b.score - a.score);
+
+            const top = bestCounters[0];
+            let statusClass = 'status-draw';
+            let statusLabel = 'Neutral';
+
+            if (top.score > 8) { statusClass = 'status-win'; statusLabel = 'Strong Counter'; }
+            else if (top.score > 2) { statusClass = 'status-win'; statusLabel = 'Advantage'; }
+            else if (top.score < -5) { statusClass = 'status-lose'; statusLabel = 'Danger'; }
+
+            $container.append(`
+                <div class="matchup-row">
+                    <div class="matchup-status ${statusClass}">${statusLabel}</div>
+                    <div class="matchup-rival">
+                        <img src="${rival.sprite}" alt="${rival.displayName}" class="matchup-poke-sprite">
+                        <div class="matchup-poke-info">
+                            <span class="matchup-poke-name">${rival.displayName}</span>
+                            <div class="type-badges">${rival.types.map(typeBadge).join('')}</div>
+                        </div>
+                    </div>
+                    <div class="matchup-your-team">
+                        <img src="${top.member.sprite}" alt="${top.member.displayName}" class="matchup-poke-sprite">
+                        <div class="matchup-poke-info">
+                            <span class="matchup-poke-name">${top.member.displayName}</span>
+                            <div class="matchup-best-counters">
+                                ${bestCounters.slice(0, 3).filter(c => c.score > 0).map(c => `
+                                    <div class="mini-counter-token" title="${c.member.displayName} (Score: ${Math.round(c.score)})">
+                                        <img src="${c.member.sprite}" alt="${c.member.displayName}">
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `);
         });
-    });
+    }
 
     $(document).on('click', '.rival-remove-btn', function () {
         const idx = $(this).data('idx');
         rivalTeam.splice(idx, 1);
+        lastCounterBatch = new Set();
+        counterRefreshCount = 0;
         renderRivalTeam();
         runRivalAnalysis();
     });
 
-    // Track if we are already analyzing to avoid loops
-    let isAnalyzingRival = false;
-    async function runRivalAnalysis(keepCurrent = false) {
+    async function runRivalAnalysis(_unused, isRefresh = false) {
         const $section = $('#rival-counters-section');
         const $grid = $('#rival-counters-grid');
         const $label = $('#rival-counters-label');
@@ -692,15 +842,11 @@ $(async function () {
             $section.hide();
             return;
         }
-        if (isAnalyzingRival) return;
-        isAnalyzingRival = true;
+
+        if (isRefresh) counterRefreshCount++;
 
         $section.show();
-
-        // Show calculating state only if not keeping current
-        if (!keepCurrent) {
-            $grid.html('<div class="p-4 text-center text-muted">Sizing up the competition...</div>');
-        }
+        $grid.html('<div class="loading-spinner"><div class="spinner"></div><p>Sizing up the competition…</p></div>');
 
         const format = $('input[name="rivalBattleFormat"]:checked').val() || 'singles';
 
@@ -737,14 +883,23 @@ $(async function () {
         }
 
         candidates = [...new Set(candidates)].filter(n => !/-(?:mega|gmax|alola|galar|hisui|paldea|totem)/.test(n));
+
+        // First refresh: skip last counter batch; subsequent: pure shuffle
+        if (isRefresh && counterRefreshCount === 1 && lastCounterBatch.size > 0) {
+            candidates = candidates.filter(n => !lastCounterBatch.has(n));
+        }
+
         shuffle(candidates);
 
-        // Fetch up to 12, pick 6 that best fit the format/team
-        const picked = candidates.slice(0, 12);
+        // Fetch up to 18, pick 6 that best fit the format/team
+        const picked = candidates.slice(0, 18);
         const results = (await Promise.allSettled(picked.map(n => fetchPokemon(n))))
             .filter(r => r.status === 'fulfilled')
             .map(r => r.value)
             .filter(d => d.id <= 1025);
+
+        // Record this batch
+        lastCounterBatch = new Set(results.slice(0, 6).map(d => d.name));
 
         $grid.empty();
         results.slice(0, 6).forEach(d => {
@@ -753,11 +908,11 @@ $(async function () {
 
             let formatReason = "";
             if (format === 'singles') {
-                if (stats.speed > 100) formatReason = "Outspeeds threats";
-                else if (stats.attack > 115 || stats.sp_atk > 115) formatReason = "High damage potential";
+                if (stats.speed > 100) formatReason = "Outspeeds many threats";
+                else if (stats.attack > 115 || stats.sp_atk > 115) formatReason = "Deals massive damage";
             } else {
                 if (types.includes('steel') || types.includes('fairy')) formatReason = "Defensive utility";
-                else if (stats.hp > 100 || stats.defense > 100) formatReason = "Solid survival bulk";
+                else if (stats.hp > 100 || stats.defense > 100) formatReason = "Solid bulk for doubles";
             }
 
             // Find which rival pokemon this counts
@@ -767,25 +922,18 @@ $(async function () {
             const targetName = target ? target.displayName : "Opponent";
             const rationale = formatReason ? `<strong>${formatReason}</strong><br>Counters ${targetName}` : `Counters ${targetName}`;
 
-            const name = d.name;
-            const sprite = spriteUrl(d.id);
-            const badges = types.map(typeBadge).join('');
-
             $grid.append(`
-            <div class="rival-counter-card animate-in show">
-              <div class="counter-badge">COUNTER</div>
-              <img src="${sprite}" alt="${capitalise(name)}">
-              <div class="counter-name">${capitalise(name)}</div>
-              <div class="counter-types mb-2 text-center">${badges}</div>
-              <div class="counter-rationale">${rationale}</div>
-              <button class="btn btn-sm btn-outline-success btn-rival-suggest-add mt-2 w-100" data-name="${name}">
-                ➕ Add to Team
-              </button>
-            </div>
-          `);
+                <div class="suggestion-card rival-counter-card">
+                    <img class="suggestion-sprite" src="${artworkUrl(d.id)}" alt="${d.name}"
+                         onerror="this.src='${spriteUrl(d.id)}'">
+                    <div class="suggestion-name">${capitalise(d.name)}</div>
+                    <div class="type-badges mb-2">${types.map(typeBadge).join('')}</div>
+                    <span class="counter-rationale">${rationale}</span>
+                    <button class="add-suggestion-btn" data-name="${d.name}" style="margin-top:0.8rem">+ Add to Your Team</button>
+                </div>
+            `);
         });
 
-        isAnalyzingRival = false;
         const exploitLabels = exploitTypes.map(typeBadge).join(' ');
         $label.html(`Exploiting opponent weaknesses: ${exploitLabels}`);
     }
@@ -802,41 +950,33 @@ $(async function () {
 
         team.forEach(p => {
             const itemSugg = getSuggestedItem(p.stats, p.types);
-            const itemText = itemSugg ? `<img class="item-icon" src="${itemIconUrl(itemSugg.slug)}" alt="${itemSugg.name}" onerror="this.style.display='none'"> ${itemSugg.name}` : 'Focus Sash';
+            const itemIconHtml = itemSugg
+                ? `<img class="item-icon" src="${itemIconUrl(itemSugg.slug)}" alt="${itemSugg.name}" onerror="this.style.display='none'"> ${itemSugg.name}`
+                : 'Focus Sash';
             const itemRationale = itemSugg ? itemSugg.rationale : '';
+
+            const stab = p.types;
             const moveSugg = buildMoveSuggestions(p);
 
             const typeBadgesHtml = p.types.map(typeBadge).join('');
             $container.append(`
-        <div class="poke-analysis-card mb-4 animate-in">
-          <div class="analysis-header">
-            <img src="${p.sprite}" alt="${p.displayName}">
+        <div class="moves-card">
+          <div class="moves-card-header">
+            <img class="moves-sprite" src="${p.sprite}" alt="${p.displayName}">
             <div>
-              <h5>${p.displayName}</h5>
-              <div class="mini-types">${typeBadgesHtml}</div>
+              <div class="moves-pokemon-name">${p.displayName}</div>
+              <div class="type-badges">${typeBadgesHtml}</div>
             </div>
           </div>
           <div class="moves-body">
             <div class="move-list">
               <h6>⚔️ Suggested Moves</h6>
-              ${moveSugg.map(mv => {
-                const catIcon = mv.category === 'physical' ? '⚡' : mv.category === 'special' ? '🌀' : '🛡️';
-                return `<div class="move-row">
-                    <div class="move-row-top">
-                        <span class="move-tag" style="background:${mv.tagColor || '#888'}">${mv.tag}</span>
-                        ${typeBadge(mv.type, true)}
-                        <span class="move-name-v2">${mv.name}</span>
-                    </div>
-                    <div class="move-row-meta">${catIcon} ${mv.power ? mv.power + ' PWR' : 'Status'}</div>
-                </div>`;
-            }).join('')}
+              ${moveSugg}
             </div>
             <div class="item-suggestion">
               <h6>🎒 Suggested Item</h6>
-              <div class="item-display">
-                <div class="item-name">${itemText}</div>
-                <div class="item-rationale">${itemRationale}</div>
-              </div>
+              <div class="item-row">${itemIconHtml}</div>
+              <div class="item-rationale">${itemRationale}</div>
             </div>
           </div>
         </div>
@@ -844,54 +984,152 @@ $(async function () {
         });
     }
 
-    // ── Moves Helper ───────────────────────────────────────────
     function buildMoveSuggestions(p) {
+        // Use type-based suggestions since PokéAPI move fetching per Pokémon is too slow
         const suggestions = [];
 
-        // 1× high power STAB (Physical or Special based on better stat)
-        const betterOffAtk = p.stats.attack >= p.stats.sp_atk ? 'physical' : 'special';
-        const stabMoves = p.types.map(t => SAMPLE_MOVES_BY_TYPE[t]).filter(Boolean);
-        stabMoves.forEach(m => {
-            suggestions.push({ ...m, tag: 'STAB', tagColor: '#60a5fa' });
+        // 2× STAB moves
+        p.types.forEach(t => {
+            const move = SAMPLE_MOVES_BY_TYPE[t];
+            if (move) suggestions.push({ ...move, tag: 'STAB', tagColor: '#4ade80' });
         });
 
-        // 1× Coverage move (fixed type choice for now)
-        const coverageType = p.types.includes('fire') ? 'water' : 'fire';
-        const covMove = SAMPLE_MOVES_BY_TYPE[coverageType];
-        if (covMove) suggestions.push({ ...covMove, tag: 'Coverage', tagColor: '#4ade80' });
+        // 1× coverage move (targets one of the team's weak types if possible)
+        const weakTypes = Object.entries(aggregateWeaknesses())
+            .filter(([, v]) => v > 0)
+            .sort((a, b) => b[1] - a[1])
+            .map(([t]) => t);
+        for (const wt of weakTypes) {
+            const cov = SAMPLE_MOVES_BY_TYPE[wt];
+            if (cov && !suggestions.some(s => s.name === cov.name)) {
+                suggestions.push({ ...cov, tag: 'Coverage', tagColor: '#60a5fa' });
+                break;
+            }
+        }
 
         // 1× utility move
         suggestions.push(UTILITY_MOVE);
 
-        return suggestions.slice(0, 4);
+        return suggestions.slice(0, 4).map(mv => {
+            const catIcon = mv.category === 'physical' ? '⚡' : mv.category === 'special' ? '🌀' : '🛡️';
+            return `<div class="move-row">
+        <span class="move-tag" style="background:${mv.tagColor || '#888'}">${mv.tag}</span>
+        ${typeBadge(mv.type)}
+        <span class="move-name">${mv.name}</span>
+        <span class="move-meta">${catIcon} ${mv.power ? mv.power + ' PWR' : 'Status'}</span>
+      </div>`;
+        }).join('');
     }
 
 
     // ── Type Chart Tab ──────────────────────────────────────────
     function renderTypeTable() {
-        let html = '<table class="type-chart-full"><thead><tr><th>Def \\ Atk</th>';
+        const $table = $('#type-chart-table');
+        // Header row
+        let html = '<thead><tr><th class="tc-corner">ATK ↓ DEF →</th>';
         ALL_TYPES.forEach(t => {
-            html += `<th>${typeBadge(t, true)}</th>`;
+            html += `<th class="tc-head" title="${t}"><span class="tc-type-pill" style="background:${TYPE_COLORS[t]}"><img src="${TYPE_ICONS[t]}" alt="${t}" style="width:14px;height:14px;vertical-align:middle;filter:drop-shadow(0 1px 1px rgba(0,0,0,0.5))"></span></th>`;
         });
+
         html += '</tr></thead><tbody>';
 
-        ALL_TYPES.forEach(def => {
-            html += `<tr><th>${typeBadge(def, true)}</th>`;
-            ALL_TYPES.forEach(atk => {
-                const m = getEffectiveness(atk, def);
-                let label = m;
-                let cls = '';
-                if (m === 2) cls = 'tc-super';
-                if (m === 0.5) { label = '0.5'; cls = 'tc-resist'; }
-                if (m === 0) { label = '0'; cls = 'tc-immune'; }
-                if (m === 1) { label = ''; } // hide 1x for clarity
+        ALL_TYPES.forEach(at => {
+            html += `<tr><th class="tc-row-head">${typeBadge(at)}</th>`;
+            ALL_TYPES.forEach(dt => {
+                const m = getEffectiveness(at, dt);
+                let cls = 'tc-normal', label = '1×';
+                if (m === 0) { cls = 'tc-immune'; label = '0×'; }
+                else if (m === 0.5) { cls = 'tc-resist'; label = '½×'; }
+                else if (m === 2) { cls = 'tc-super'; label = '2×'; }
                 html += `<td class="${cls}">${label}</td>`;
             });
             html += '</tr>';
         });
-        html += '</tbody></table>';
-        $('#type-table-container').html(html);
+        html += '</tbody>';
+        $table.html(html);
+
+        // Dual-type calculator
+        const typeOptions = ALL_TYPES.map(t => `<option value="${t}">${capitalise(t)}</option>`).join('');
+        $('#dual-type1, #dual-type2').html(typeOptions);
+
+        setupCustomSelect('#dual-type1');
+        setupCustomSelect('#dual-type2');
+
+        $('#dual-calc-btn').on('click', runDualCalc);
     }
+
+    function setupCustomSelect(selectId) {
+        const $select = $(selectId);
+
+        // Remove existing custom select if already initialized
+        $select.next('.custom-select-container').remove();
+
+        const currentVal = $select.val() || 'normal';
+        const displayVal = capitalise(currentVal);
+        const iconUrl = TYPE_ICONS[currentVal] || '';
+
+        const $container = $('<div class="custom-select-container"></div>');
+        const $trigger = $(`
+            <div class="custom-select-trigger">
+                <div class="d-flex align-items-center gap-2">
+                    ${iconUrl ? `<img src="${iconUrl}" alt="${currentVal}" class="type-icon-small">` : ''}
+                    <span>${displayVal}</span>
+                </div>
+            </div>
+        `);
+        const $options = $('<div class="custom-select-options"></div>');
+
+        $select.after($container);
+        $container.append($trigger).append($options);
+
+        // Build options
+        ALL_TYPES.forEach(t => {
+            const $opt = $(`
+                <div class="custom-select-option" data-value="${t}">
+                    <img src="${TYPE_ICONS[t] || ''}" alt="${t}" class="type-icon-small">
+                    <span>${capitalise(t)}</span>
+                </div>
+            `);
+            if (t === currentVal) $opt.addClass('selected');
+            $options.append($opt);
+        });
+
+        // Toggle open
+        $trigger.on('click', function (e) {
+            e.stopPropagation();
+            $('.custom-select-container').not($container).removeClass('open');
+            $container.toggleClass('open');
+        });
+
+        // Select option
+        $options.on('click', '.custom-select-option', function (e) {
+            const val = $(this).data('value');
+            if ($select.val() === val) {
+                $container.removeClass('open');
+                return;
+            }
+
+            $select.val(val).trigger('change');
+
+            // Update trigger UI
+            $trigger.find('span').text(capitalise(val));
+            const newIcon = TYPE_ICONS[val] || '';
+            if (newIcon) {
+                $trigger.find('img').attr('src', newIcon).attr('alt', val);
+            }
+
+            $options.find('.custom-select-option').removeClass('selected');
+            $(this).addClass('selected');
+
+            $container.removeClass('open');
+            runDualCalc(); // Auto-calculate on change
+        });
+    }
+
+    // Close custom selects when clicking outside
+    $(document).on('click', function () {
+        $('.custom-select-container').removeClass('open');
+    });
 
     function runDualCalc() {
         const type1 = $('#dual-type1').val();
@@ -969,36 +1207,5 @@ $(async function () {
         setTimeout(() => $t.addClass('show'), 10);
         setTimeout(() => { $t.removeClass('show'); setTimeout(() => $t.remove(), 400); }, 3500);
     }
-
-    function aggregateWeaknesses() {
-        const total = {};
-        team.forEach(p => {
-            ALL_TYPES.forEach(at => {
-                const m = getCombinedEffectiveness(at, p.types[0], p.types[1]);
-                if (m > 1) total[at] = (total[at] || 0) + 1;
-            });
-        });
-        return total;
-    }
-
-    function miniStats(stats) {
-        if (!stats) return '';
-        return Object.entries(stats).map(([k, v]) => {
-            const percent = Math.min(100, (v / 200) * 100);
-            return `
-            <div class="mini-stat" title="${k.toUpperCase()}: ${v}">
-                <div class="mini-stat-bar" style="height:${percent}%"></div>
-            </div>
-        `;
-        }).join('');
-    }
-
-    function clearEvaluator() {
-        $('#defense-matrix-container, #critical-warnings, #strength-summary').empty();
-    }
-
-    // The existing updateMovesTab function is more complex and should be kept.
-    // This placeholder version is likely from an older or different context.
-    // Keeping the original updateMovesTab and adding the other missing helpers.
 
 });

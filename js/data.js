@@ -47,11 +47,6 @@ function getCombinedEffectiveness(attackingType, type1, type2) {
   return m;
 }
 
-// Returns list of types that resist an attacking type
-function getResistingTypes(attackingType) {
-  return ALL_TYPES.filter(t => getEffectiveness(attackingType, t) < 1);
-}
-
 // --- Legendary / Mythical Pokémon Dex IDs ---
 // Includes Gen 1–9 legendaries and mythicals
 const LEGENDARY_IDS = new Set([
@@ -167,15 +162,10 @@ const TYPE_EXAMPLES = {
   fairy: [{ name: 'Clefable', id: 36 }, { name: 'Togekiss', id: 468 }, { name: 'Sylveon', id: 700 }, { name: 'Tinkaton', id: 959 }]
 };
 
-function typeBadge(type, mini = false) {
+function typeBadge(type) {
   const color = TYPE_COLORS[type] || '#888';
   const iconUrl = TYPE_ICONS[type];
   const displayName = type.toUpperCase();
-  if (mini) {
-    return `<span class="type-badge-mini" title="${displayName}" style="--type-color: ${color}">
-              <img src="${iconUrl}" alt="${type}">
-            </span>`;
-  }
   return `
     <span class="type-badge" data-type="${type}" style="--type-color: ${color}">
       <span class="badge-icon-part">
@@ -211,24 +201,6 @@ async function fetchPokemon(nameOrId) {
   const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${nameOrId}`);
   if (!res.ok) throw new Error(`Pokémon "${nameOrId}" not found`);
   const data = await res.json();
-
-  // Fetch ability descriptions
-  const abilityPromises = data.abilities.map(async (a) => {
-    try {
-      const aRes = await fetch(a.ability.url);
-      const aData = await aRes.json();
-      const entry = aData.effect_entries.find(e => e.language.name === 'en') ||
-        aData.flavor_text_entries.find(e => e.language.name === 'en');
-      return {
-        name: a.ability.name,
-        description: entry ? (entry.effect || entry.flavor_text) : 'No description available.',
-        isHidden: a.is_hidden
-      };
-    } catch (e) {
-      return { name: a.ability.name, description: 'No description available.', isHidden: a.is_hidden };
-    }
-  });
-  data.abilityDetails = await Promise.all(abilityPromises);
 
   try {
     sessionStorage.setItem(key, JSON.stringify(data));
