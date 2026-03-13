@@ -96,18 +96,70 @@ const ITEMS = [
 ];
 
 function getSuggestedItem(stats, types) {
-  if (types.includes('poison')) return ITEMS.find(i => i.slug === 'black-sludge');
-  const maxStat = Object.entries(stats).reduce((a, b) => a[1] > b[1] ? a : b);
-  const map = {
-    attack: 'choice-band',
-    sp_atk: 'choice-specs',
-    speed: 'choice-scarf',
-    hp: 'leftovers',
-    defense: 'rocky-helmet',
-    sp_def: 'assault-vest',
-  };
-  const slug = map[maxStat[0]] || 'focus-sash';
-  return ITEMS.find(i => i.slug === slug) || ITEMS.find(i => i.slug === 'focus-sash');
+  const s = stats;
+  const item = slug => ITEMS.find(i => i.slug === slug);
+
+  let mainSlug, altSlugs;
+
+  // Poison types always prefer Black Sludge
+  if (types.includes('poison')) {
+    mainSlug = 'black-sludge';
+    altSlugs = ['leftovers', 'rocky-helmet'];
+  }
+  // Fast physical attacker (speed + attack both high) — prefer Life Orb over Choice Band
+  else if (s.speed >= 100 && s.attack > s.sp_atk && s.attack >= 100) {
+    mainSlug = 'life-orb';
+    altSlugs = ['choice-band', 'expert-belt'];
+  }
+  // Fast special attacker — prefer Life Orb or Choice Specs
+  else if (s.speed >= 100 && s.sp_atk > s.attack && s.sp_atk >= 100) {
+    mainSlug = s.sp_atk >= 120 ? 'choice-specs' : 'life-orb';
+    altSlugs = ['choice-specs', 'expert-belt'];
+  }
+  // Slow, high attack — Choice Band is fine
+  else if (s.attack > s.sp_atk && s.attack >= 110) {
+    mainSlug = 'choice-band';
+    altSlugs = ['life-orb', 'assault-vest'];
+  }
+  // Slow, high sp_atk — Choice Specs
+  else if (s.sp_atk > s.attack && s.sp_atk >= 110) {
+    mainSlug = 'choice-specs';
+    altSlugs = ['life-orb', 'focus-sash'];
+  }
+  // Needs speed control — Choice Scarf
+  else if (s.speed >= 100 && s.speed > s.hp && s.speed > s.defense) {
+    mainSlug = 'choice-scarf';
+    altSlugs = ['focus-sash', 'life-orb'];
+  }
+  // Physically defensive wall
+  else if (s.defense >= 100) {
+    mainSlug = 'rocky-helmet';
+    altSlugs = ['leftovers', 'assault-vest'];
+  }
+  // Specially defensive wall
+  else if (s.sp_def >= 100) {
+    mainSlug = 'assault-vest';
+    altSlugs = ['leftovers', 'sitrus-berry'];
+  }
+  // Bulky HP-based
+  else if (s.hp >= 100) {
+    mainSlug = 'leftovers';
+    altSlugs = ['sitrus-berry', 'rocky-helmet'];
+  }
+  // Frail Pokémon
+  else {
+    mainSlug = 'focus-sash';
+    altSlugs = ['lum-berry', 'sitrus-berry'];
+  }
+
+  // Filter out the main item from alternatives and cap at 2
+  const alts = altSlugs
+    .filter(s => s !== mainSlug)
+    .map(s => item(s))
+    .filter(Boolean)
+    .slice(0, 2);
+
+  return { main: item(mainSlug) || item('focus-sash'), alternatives: alts };
 }
 
 // --- Type Colours & Display ---

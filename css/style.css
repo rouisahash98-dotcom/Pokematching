@@ -224,6 +224,12 @@ body::before {
   color: var(--text-main);
 }
 
+.team-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 #team-counter {
   font-weight: 700;
   font-size: 1.1rem;
@@ -231,6 +237,116 @@ body::before {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+/* Clear Team / Clear Rival button */
+.clear-team-btn {
+  background: rgba(248, 113, 113, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  color: #f87171;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.35rem 0.9rem;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+  letter-spacing: 0.3px;
+}
+
+.clear-team-btn:hover {
+  background: rgba(248, 113, 113, 0.25);
+  box-shadow: 0 0 10px rgba(248, 113, 113, 0.2);
+  transform: scale(1.03);
+}
+
+.clear-team-btn:active {
+  transform: scale(0.97);
+}
+
+/* Rival header grouping */
+.rival-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Item alternatives panel */
+.item-alternatives {
+  margin-top: 0.6rem;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding-top: 0.5rem;
+}
+
+.item-alts-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 0.35rem;
+}
+
+.item-alt-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  padding: 2px 0;
+}
+
+.item-alt-row img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  opacity: 0.8;
+}
+
+/* Dual-type strength results */
+.dual-strength-result {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.dual-strength-result h6 {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 0.6rem;
+}
+
+.strength-results-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.strength-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(74, 222, 128, 0.08);
+  border: 1px solid rgba(74, 222, 128, 0.25);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #4ade80;
+}
+
+.strength-chip.x4 {
+  background: rgba(74, 222, 128, 0.18);
+  border-color: rgba(74, 222, 128, 0.5);
+  color: #86efac;
+  font-weight: 800;
+}
+
+.no-strength-msg {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-style: italic;
 }
 
 /* ── Team Grid ────────────────────────────────────────── */

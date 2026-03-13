@@ -15,6 +15,10 @@ $(async function () {
     let suggestionRefreshCount = 0;      // >0 means full shuffle mode
     let counterRefreshCount = 0;
 
+    // Feature 4: Cache rival analysis results per battle format
+    // Invalidated whenever rival team changes or user clicks Refresh
+    let rivalAnalysisCache = { singles: null, doubles: null };
+
     // Declared here (top of scope) so they are available immediately on boot.
     // const has a Temporal Dead Zone — declaring mid-function would crash when
     // loadTeamFromStorage triggers renderTeam→buildMoveSuggestions before reaching them.
@@ -59,7 +63,36 @@ $(async function () {
         renderSuggestions(true);
     });
     $('#refresh-counters-btn').on('click', function () {
+        // Invalidate cache so a true refresh is forced
+        rivalAnalysisCache = { singles: null, doubles: null };
         runRivalAnalysis(null, true);
+    });
+
+    // Feature 1: Clear team buttons
+    $('#clear-team-btn').on('click', function () {
+        if (team.length === 0) return;
+        team = [];
+        lastSuggestionBatch = new Set();
+        suggestionRefreshCount = 0;
+        saveTeam();
+        renderTeam();
+        renderSuggestions();
+        clearEvaluator();
+        updateMovesTab();
+        runMatchupAnalysis();
+        showToast('Team cleared!', 'info');
+    });
+
+    $('#clear-rival-btn').on('click', function () {
+        if (rivalTeam.length === 0) return;
+        rivalTeam = [];
+        rivalAnalysisCache = { singles: null, doubles: null };
+        lastCounterBatch = new Set();
+        counterRefreshCount = 0;
+        renderRivalTeam();
+        $('#rival-counters-section').hide();
+        $('#rival-matchup-section').hide();
+        showToast('Rival team cleared!', 'info');
     });
 
     // ── Search / Autocomplete ───────────────────────────────────
@@ -129,7 +162,10 @@ $(async function () {
             }
         });
 
-        $('input[name="rivalBattleFormat"]').on('change', runRivalAnalysis);
+        // Feature 4: format switch uses cache — no forced refresh
+        $('input[name="rivalBattleFormat"]').on('change', function () {
+            runRivalAnalysis(null, false);
+        });
     }
 
     // ── Add Pokémon ────────────────────────────────────────────
@@ -364,7 +400,7 @@ $(async function () {
         }
 
         shuffle(candidates);
-        const picked = candidates.slice(0, 30); // fetch more to account for weakness filtering
+        const picked = candidates.slice(0, 40); // Feature 5: fetch more to allow stricter filtering
 
         const enriched = (await Promise.allSettled(picked.map(n => fetchPokemon(n))))
             .filter(r => r.status === 'fulfilled')
@@ -372,21 +408,27 @@ $(async function () {
             .filter(d => {
                 if (legendaryCount >= 1 && LEGENDARY_IDS.has(d.id)) return false;
                 if (d.id > 1025) return false;
-                // Reject if this candidate adds a NEW x4 weakness not already on the team
+                // Feature 5: Reject if candidate adds a NEW x4 weakness
                 const cTypes = parseTypes(d.types);
                 const newX4 = getAllWeaknesses(cTypes, 4).filter(t => !currentX4.has(t));
                 if (newX4.length > 0) return false;
+                // Feature 5: Count new x2 weaknesses as a penalty (keep candidates but rank lower)
                 return true;
-            })
-            .slice(0, 5);
+            });
 
         if (enriched.length === 0) {
             $('#suggestions-grid').html('<p class="no-suggestions">No suggestions found. Try a different team!</p>');
             return;
         }
 
-        // Score each candidate by how many of topWeak it covers
-        enriched.sort((a, b) => coverageScore(b, topWeak) - coverageScore(a, topWeak));
+        // Feature 5: Score = coverage gain minus penalty for NEW x2 weaknesses introduced
+        function candidateScore(d) {
+            const cTypes = parseTypes(d.types);
+            const coverage = coverageScore(d, topWeak);
+            const newX2 = getAllWeaknesses(cTypes, 2).filter(t => !currentX2.has(t)).length;
+            return coverage - newX2 * 0.75; // penalise new x2 weaknesses
+        }
+        enriched.sort((a, b) => candidateScore(b) - candidateScore(a));
 
         // Record this batch so next refresh can skip it
         lastSuggestionBatch = new Set(enriched.map(d => d.name));
@@ -634,7 +676,8 @@ $(async function () {
             });
         });
 
-        const strongTypes = Object.keys(strongAgainstData).filter(t => strongAgainstData[t].length >= 2);
+        // Feature 3: Show strength even when only 1 Pokémon hits that type effectively
+        const strongTypes = Object.keys(strongAgainstData).filter(t => strongAgainstData[t].length >= 1);
 
         if (strongTypes.length) {
             const labels = strongTypes.map(t => {
@@ -725,6 +768,8 @@ $(async function () {
                 types,
                 sprite: spriteUrl(data.id)
             });
+            // Feature 4: invalidate cache when rival team changes
+            rivalAnalysisCache = { singles: null, doubles: null };
             $('#rival-search-input').val('');
             renderRivalTeam();
             runRivalAnalysis();
@@ -827,6 +872,8 @@ $(async function () {
     $(document).on('click', '.rival-remove-btn', function () {
         const idx = $(this).data('idx');
         rivalTeam.splice(idx, 1);
+        // Feature 4: invalidate cache on team change
+        rivalAnalysisCache = { singles: null, doubles: null };
         lastCounterBatch = new Set();
         counterRefreshCount = 0;
         renderRivalTeam();
@@ -845,25 +892,36 @@ $(async function () {
 
         if (isRefresh) counterRefreshCount++;
 
+        const format = $('input[name="rivalBattleFormat"]:checked').val() || 'singles';
+
+        // Feature 4: serve from cache if format hasn't changed and no refresh
+        if (!isRefresh && rivalAnalysisCache[format]) {
+            $section.show();
+            $grid.html(rivalAnalysisCache[format].gridHtml);
+            $label.html(rivalAnalysisCache[format].labelHtml);
+            return;
+        }
+
         $section.show();
         $grid.html('<div class="loading-spinner"><div class="spinner"></div><p>Sizing up the competition…</p></div>');
 
-        const format = $('input[name="rivalBattleFormat"]:checked').val() || 'singles';
-
-        // 1. Analyze weaknesses across the entire rival team
+        // 1. Analyze weaknesses per rival Pokémon and across the whole team
         const rivalWeaknesses = {};
+        const rivalWeakMap = {}; // per-rival weak types
         rivalTeam.forEach(p => {
+            rivalWeakMap[p.name] = [];
             ALL_TYPES.forEach(at => {
                 const eff = getCombinedEffectiveness(at, p.types[0], p.types[1]);
                 if (eff > 1) {
                     rivalWeaknesses[at] = (rivalWeaknesses[at] || 0) + 1;
+                    rivalWeakMap[p.name].push(at);
                 }
             });
         });
 
         const exploitTypes = Object.entries(rivalWeaknesses)
             .sort((a, b) => b[1] - a[1])
-            .slice(0, 3)
+            .slice(0, 4)
             .map(([t]) => t);
 
         if (exploitTypes.length === 0) {
@@ -872,9 +930,11 @@ $(async function () {
             return;
         }
 
-        // 2. Fetch potential counters of those exploiting types
+        // 2. Fetch candidates — grab types for ALL rival weaknesses to improve breadth
+        const allRivalWeakTypes = [...new Set(Object.values(rivalWeakMap).flat())];
         let candidates = [];
-        for (const t of exploitTypes) {
+        const typesToFetch = [...new Set([...exploitTypes, ...allRivalWeakTypes])].slice(0, 6);
+        for (const t of typesToFetch) {
             try {
                 const res = await fetch(`https://pokeapi.co/api/v2/type/${t}`);
                 const data = await res.json();
@@ -891,38 +951,96 @@ $(async function () {
 
         shuffle(candidates);
 
-        // Fetch up to 18, pick 6 that best fit the format/team
-        const picked = candidates.slice(0, 18);
+        // Fetch up to 30 to have a large pool for breadth selection
+        const picked = candidates.slice(0, 30);
         const results = (await Promise.allSettled(picked.map(n => fetchPokemon(n))))
             .filter(r => r.status === 'fulfilled')
             .map(r => r.value)
             .filter(d => d.id <= 1025);
 
-        // Record this batch
-        lastCounterBatch = new Set(results.slice(0, 6).map(d => d.name));
+        // Feature 6/F9: Breadth-first selection — ensure coverage across all rival Pokémon
+        // Each candidate gets a score per rival it counter (multiplied by eff), pick greedily
+        const rivalCoverage = new Map(rivalTeam.map(p => [p.name, 0])); // how many counters each rival has
+        const selected = [];
 
-        $grid.empty();
-        results.slice(0, 6).forEach(d => {
+        // Score a candidate: how well does it counter each rival?
+        function rivalCounterScore(d, format) {
+            const types = parseTypes(d.types);
+            const stats = parseStats(d.stats);
+            let total = 0;
+            rivalTeam.forEach(rival => {
+                let offScore = 0;
+                types.forEach(mt => {
+                    const eff = getCombinedEffectiveness(mt, rival.types[0], rival.types[1]);
+                    if (eff > 1) offScore += eff;
+                });
+                // Format suitability bonus
+                if (format === 'singles' && (stats.speed > 100 || stats.attack > 115 || stats.sp_atk > 115)) offScore += 1;
+                if (format === 'doubles' && (types.includes('steel') || types.includes('fairy') || stats.hp > 100)) offScore += 1;
+                total += offScore;
+            });
+            return total;
+        }
+
+        // Breadth-first: prioritise candidates that cover rivals with fewest counters so far
+        function breadthPriorityScore(d) {
+            const types = parseTypes(d.types);
+            let score = 0;
+            rivalTeam.forEach(rival => {
+                const offEff = Math.max(...types.map(mt => getCombinedEffectiveness(mt, rival.types[0], rival.types[1])));
+                if (offEff > 1) {
+                    // Bonus inversely proportional to how many counters this rival already has
+                    const existingCoverage = rivalCoverage.get(rival.name) || 0;
+                    score += offEff * (1 + 1 / (existingCoverage + 1));
+                }
+            });
+            return score;
+        }
+
+        const pool = [...results];
+        while (selected.length < 6 && pool.length > 0) {
+            // Sort by breadth priority each iteration
+            pool.sort((a, b) => breadthPriorityScore(b) - breadthPriorityScore(a));
+            const best = pool.shift();
+            selected.push(best);
+            // Update coverage counts
+            const bestTypes = parseTypes(best.types);
+            rivalTeam.forEach(rival => {
+                const eff = Math.max(...bestTypes.map(mt => getCombinedEffectiveness(mt, rival.types[0], rival.types[1])));
+                if (eff > 1) {
+                    rivalCoverage.set(rival.name, (rivalCoverage.get(rival.name) || 0) + 1);
+                }
+            });
+        }
+
+        // Record this batch
+        lastCounterBatch = new Set(selected.map(d => d.name));
+
+        // Build HTML
+        let gridHtml = '';
+        selected.forEach(d => {
             const types = parseTypes(d.types);
             const stats = parseStats(d.stats);
 
-            let formatReason = "";
+            let formatReason = '';
             if (format === 'singles') {
-                if (stats.speed > 100) formatReason = "Outspeeds many threats";
-                else if (stats.attack > 115 || stats.sp_atk > 115) formatReason = "Deals massive damage";
+                if (stats.speed > 100) formatReason = 'Outspeeds many threats';
+                else if (stats.attack > 115 || stats.sp_atk > 115) formatReason = 'Deals massive damage';
             } else {
-                if (types.includes('steel') || types.includes('fairy')) formatReason = "Defensive utility";
-                else if (stats.hp > 100 || stats.defense > 100) formatReason = "Solid bulk for doubles";
+                if (types.includes('steel') || types.includes('fairy')) formatReason = 'Defensive utility';
+                else if (stats.hp > 100 || stats.defense > 100) formatReason = 'Solid bulk for doubles';
             }
 
-            // Find which rival pokemon this counts
-            const target = rivalTeam.find(p => {
-                return types.some(t => getCombinedEffectiveness(t, p.types[0], p.types[1]) > 1);
-            });
-            const targetName = target ? target.displayName : "Opponent";
-            const rationale = formatReason ? `<strong>${formatReason}</strong><br>Counters ${targetName}` : `Counters ${targetName}`;
+            // Find which rivals this counters
+            const targets = rivalTeam.filter(p =>
+                types.some(mt => getCombinedEffectiveness(mt, p.types[0], p.types[1]) > 1)
+            );
+            const targetNames = targets.length > 0 ? targets.map(p => p.displayName).join(', ') : 'General support';
+            const rationale = formatReason
+                ? `<strong>${formatReason}</strong><br>Counters: ${targetNames}`
+                : `Counters: ${targetNames}`;
 
-            $grid.append(`
+            gridHtml += `
                 <div class="suggestion-card rival-counter-card">
                     <img class="suggestion-sprite" src="${artworkUrl(d.id)}" alt="${d.name}"
                          onerror="this.src='${spriteUrl(d.id)}'">
@@ -931,11 +1049,17 @@ $(async function () {
                     <span class="counter-rationale">${rationale}</span>
                     <button class="add-suggestion-btn" data-name="${d.name}" style="margin-top:0.8rem">+ Add to Your Team</button>
                 </div>
-            `);
+            `;
         });
 
         const exploitLabels = exploitTypes.map(typeBadge).join(' ');
-        $label.html(`Exploiting opponent weaknesses: ${exploitLabels}`);
+        const labelHtml = `Exploiting opponent weaknesses: ${exploitLabels}`;
+
+        // Feature 4: store in cache
+        rivalAnalysisCache[format] = { gridHtml, labelHtml };
+
+        $grid.html(gridHtml);
+        $label.html(labelHtml);
     }
 
     // ── Moves & Items Tab ───────────────────────────────────────
@@ -948,15 +1072,36 @@ $(async function () {
             return;
         }
 
-        team.forEach(p => {
-            const itemSugg = getSuggestedItem(p.stats, p.types);
+        // Feature 7: Track which coverage types have already been assigned across the team
+        const usedCoverageTypes = new Set();
+
+        team.forEach((p, idx) => {
+            // Feature 7: each Pokémon gets item suggestion + alternatives
+            const { main: itemSugg, alternatives: itemAlts } = getSuggestedItem(p.stats, p.types);
             const itemIconHtml = itemSugg
                 ? `<img class="item-icon" src="${itemIconUrl(itemSugg.slug)}" alt="${itemSugg.name}" onerror="this.style.display='none'"> ${itemSugg.name}`
                 : 'Focus Sash';
             const itemRationale = itemSugg ? itemSugg.rationale : '';
 
-            const stab = p.types;
-            const moveSugg = buildMoveSuggestions(p);
+            // Build alternatives HTML
+            let altsHtml = '';
+            if (itemAlts && itemAlts.length > 0) {
+                const altRows = itemAlts.map(alt => `
+                    <div class="item-alt-row">
+                        <img src="${itemIconUrl(alt.slug)}" alt="${alt.name}" onerror="this.style.display='none'">
+                        <span><strong>${alt.name}</strong> — ${alt.rationale}</span>
+                    </div>
+                `).join('');
+                altsHtml = `
+                    <div class="item-alternatives">
+                        <div class="item-alts-label">Alternatives</div>
+                        ${altRows}
+                    </div>
+                `;
+            }
+
+            // Feature 7: pass usedCoverageTypes so each Pokémon gets a unique coverage move
+            const moveSugg = buildMoveSuggestions(p, usedCoverageTypes);
 
             const typeBadgesHtml = p.types.map(typeBadge).join('');
             $container.append(`
@@ -977,6 +1122,7 @@ $(async function () {
               <h6>🎒 Suggested Item</h6>
               <div class="item-row">${itemIconHtml}</div>
               <div class="item-rationale">${itemRationale}</div>
+              ${altsHtml}
             </div>
           </div>
         </div>
@@ -984,7 +1130,7 @@ $(async function () {
         });
     }
 
-    function buildMoveSuggestions(p) {
+    function buildMoveSuggestions(p, usedCoverageTypes = new Set()) {
         // Use type-based suggestions since PokéAPI move fetching per Pokémon is too slow
         const suggestions = [];
 
@@ -994,21 +1140,40 @@ $(async function () {
             if (move) suggestions.push({ ...move, tag: 'STAB', tagColor: '#4ade80' });
         });
 
-        // 1× coverage move (targets one of the team's weak types if possible)
+        // Feature 7: 1× coverage move — pick from team weaknesses, but exclude already-used coverage types
+        // so each Pokémon on the team covers a different field
         const weakTypes = Object.entries(aggregateWeaknesses())
             .filter(([, v]) => v > 0)
             .sort((a, b) => b[1] - a[1])
             .map(([t]) => t);
+        let coveragePicked = false;
         for (const wt of weakTypes) {
+            // Skip if this move type is already a STAB for this Pokémon
+            if (p.types.includes(wt)) continue;
+            // Feature 7: prefer types not yet covered by another teammate
             const cov = SAMPLE_MOVES_BY_TYPE[wt];
-            if (cov && !suggestions.some(s => s.name === cov.name)) {
+            if (cov && !suggestions.some(s => s.name === cov.name) && !usedCoverageTypes.has(wt)) {
                 suggestions.push({ ...cov, tag: 'Coverage', tagColor: '#60a5fa' });
+                usedCoverageTypes.add(wt);
+                coveragePicked = true;
                 break;
             }
         }
+        // Fallback: if all top-weak types are taken, pick any remaining one
+        if (!coveragePicked) {
+            for (const wt of weakTypes) {
+                if (p.types.includes(wt)) continue;
+                const cov = SAMPLE_MOVES_BY_TYPE[wt];
+                if (cov && !suggestions.some(s => s.name === cov.name)) {
+                    suggestions.push({ ...cov, tag: 'Coverage', tagColor: '#60a5fa' });
+                    break;
+                }
+            }
+        }
 
-        // 1× utility move
-        suggestions.push(UTILITY_MOVE);
+        // Feature 7: Role-based utility move instead of the same generic one
+        const utilMove = getRoleUtilityMove(p);
+        suggestions.push(utilMove);
 
         return suggestions.slice(0, 4).map(mv => {
             const catIcon = mv.category === 'physical' ? '⚡' : mv.category === 'special' ? '🌀' : '🛡️';
@@ -1019,6 +1184,24 @@ $(async function () {
         <span class="move-meta">${catIcon} ${mv.power ? mv.power + ' PWR' : 'Status'}</span>
       </div>`;
         }).join('');
+    }
+
+    // Feature 7: Role-based utility move suggestions
+    function getRoleUtilityMove(p) {
+        const s = p.stats;
+        const types = p.types;
+        // Physical sweeper
+        if (s.attack >= s.sp_atk && s.speed >= 90) return { name: 'Swords Dance', type: 'normal', category: 'status', power: null, tag: 'Utility', tagColor: '#a78bfa' };
+        // Special sweeper
+        if (s.sp_atk > s.attack && s.speed >= 90) return { name: 'Nasty Plot', type: 'dark', category: 'status', power: null, tag: 'Utility', tagColor: '#a78bfa' };
+        // Defensive wall
+        if (s.defense >= 90 || s.sp_def >= 90) return { name: 'Recover / Roost', type: 'normal', category: 'status', power: null, tag: 'Utility', tagColor: '#a78bfa' };
+        // Hazard setter
+        if (s.hp >= 85 || s.defense >= 75) return { name: 'Stealth Rock', type: 'rock', category: 'status', power: null, tag: 'Utility', tagColor: '#a78bfa' };
+        // Pivot
+        if (types.includes('water') || types.includes('grass')) return { name: 'U-turn / Volt Switch', type: 'bug', category: 'physical', power: 70, tag: 'Utility', tagColor: '#a78bfa' };
+        // Default
+        return { name: 'Will-O-Wisp / Thunder Wave', type: 'fire', category: 'status', power: null, tag: 'Utility', tagColor: '#a78bfa' };
     }
 
 
@@ -1134,6 +1317,8 @@ $(async function () {
     function runDualCalc() {
         const type1 = $('#dual-type1').val();
         const type2 = $('#dual-type2').val();
+
+        // Weakness calculator (existing)
         let html = `<h6>Damage multipliers vs ${typeBadge(type1)} / ${typeBadge(type2)} defender</h6>`;
         html += '<div class="dual-results">';
         ALL_TYPES.forEach(at => {
@@ -1146,6 +1331,44 @@ $(async function () {
         });
         html += '</div>';
         $('#dual-result').html(html);
+
+        // Feature 8: Dual-type offensive strength calculator
+        runDualStrengthCalc(type1, type2);
+    }
+
+    // Feature 8: Show what a dual-type combo hits super-effectively
+    function runDualStrengthCalc(type1, type2) {
+        const hits4x = [];
+        const hits2x = [];
+
+        ALL_TYPES.forEach(defType => {
+            // Check what each of the two attacker types can hit
+            const eff1 = getEffectiveness(type1, defType);
+            const eff2 = getEffectiveness(type2, defType);
+            const bestEff = Math.max(eff1, eff2);
+            if (bestEff >= 4) hits4x.push(defType);
+            else if (bestEff >= 2) hits2x.push(defType);
+        });
+
+        let sHtml = `<div class="dual-strength-result">`;
+        sHtml += `<h6>⚔️ What ${typeBadge(type1)} + ${typeBadge(type2)} hits super-effectively</h6>`;
+
+        if (hits4x.length === 0 && hits2x.length === 0) {
+            sHtml += `<p class="no-strength-msg">No super-effective coverage with this combination.</p>`;
+        } else {
+            sHtml += `<div class="strength-results-grid">`;
+            hits4x.forEach(t => {
+                sHtml += `<div class="strength-chip x4">${typeBadge(t)} <span>4×</span></div>`;
+            });
+            hits2x.forEach(t => {
+                sHtml += `<div class="strength-chip">${typeBadge(t)} <span>2×</span></div>`;
+            });
+            sHtml += `</div>`;
+        }
+        sHtml += `</div>`;
+
+        // Insert after #dual-result, replacing any previous strength result
+        $('#dual-strength-section').html(sHtml);
     }
 
     // ── UI Helpers ──────────────────────────────────────────────
